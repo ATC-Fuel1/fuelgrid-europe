@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FuelGrid Europe — Diesel · HVO100 · EV</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+  :root{
+    --ink:#101828;          /* asphalt */
+    --ink-2:#1b2537;
+    --paper:#ffffff;
+    --chalk:#f7f8fa;
+    --text:#1a2233;
+    --muted:#5d6779;
+    --line:#e5e8ee;
+    --sign:#1a56c4;         /* EU motorway signage blue — single accent */
+    --sign-dark:#123c8c;
+    --green:#12a150;
+    --amber:#f5a524;
+    --red:#e5484d;
+    --gray:#9aa3b2;
+    --shadow:0 10px 30px rgba(16,24,40,.16);
+    --radius:14px;
+    --font:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);color:var(--text);background:var(--chalk);overflow:hidden}
+  button{font-family:inherit;cursor:pointer}
+  button:focus-visible,a:focus-visible{outline:3px solid var(--sign);outline-offset:2px;border-radius:8px}
+
+  /* ---------- Header: motorway-signage bar ---------- */
+  header{
+    position:fixed;inset:0 0 auto 0;z-index:1200;min-height:60px;
+    background:var(--ink);color:#fff;
+    display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;padding:7px 16px;
+    border-bottom:3px solid var(--sign);
+  }
+  .brand{display:flex;align-items:center;gap:10px;min-width:0}
+  .brand .lights{display:flex;flex-direction:column;gap:2px;padding:4px 3px;background:#000;border-radius:5px}
+  .brand .lights i{width:7px;height:7px;border-radius:50%;display:block}
+  .brand .lights i:nth-child(1){background:var(--red)}
+  .brand .lights i:nth-child(2){background:var(--amber)}
+  .brand .lights i:nth-child(3){background:var(--green)}
+  .brand h1{font-size:15px;font-weight:800;letter-spacing:.10em;text-transform:uppercase;white-space:nowrap}
+  .brand .ver{font-size:10px;font-weight:700;letter-spacing:.08em;color:#9fb4e8;background:rgba(26,86,196,.25);border:1px solid rgba(159,180,232,.4);padding:2px 7px;border-radius:999px}
+
+  .seg{display:flex;background:var(--sign);border-radius:12px;padding:4px;gap:4px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+  .fseg{margin-left:auto}
+  .cseg button{padding:7px 10px}
+  .seg button{
+    border:0;background:transparent;color:#dbe6ff;
+    font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:7px 14px;border-radius:9px;transition:background .15s,color .15s;
+  }
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--sign-dark)}
+  .seg button:hover:not([aria-pressed="true"]){background:rgba(255,255,255,.14);color:#fff}
+
+  .head-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .seg + .head-right{margin-left:0}
+  .snapshot{font-size:11.5px;color:#aeb8c9;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .btn-ghost{
+    border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;
+    font-size:12px;font-weight:700;letter-spacing:.04em;padding:7px 12px;border-radius:9px;
+  }
+  .btn-ghost:hover{background:rgba(255,255,255,.12)}
+
+  /* ---------- Map ---------- */
+  #map{position:fixed;inset:60px 0 0 0;background:#dde5ec}
+  .leaflet-container{font-family:var(--font)}
+
+  /* Aggregate "price totems" */
+  .aggWrap{background:none;border:none}
+  .agg{
+    display:flex;align-items:center;justify-content:center;border-radius:50%;
+    color:#fff;font-weight:800;font-variant-numeric:tabular-nums;
+    border:2.5px solid rgba(255,255,255,.92);
+    box-shadow:0 3px 10px rgba(16,24,40,.35);
+    cursor:pointer;transition:transform .12s;
+  }
+  .agg:hover{transform:scale(1.07)}
+  .agg.s-green{background:rgba(18,161,80,.93)}
+  .agg.s-amber{background:rgba(245,165,36,.95)}
+  .agg.s-red{background:rgba(229,72,77,.93)}
+  .agg.s-gray{background:rgba(154,163,178,.93)}
+
+  /* Popups */
+  .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
+  .leaflet-popup-content{margin:14px 16px;line-height:1.45}
+  .fm-pop{font-size:12.5px;color:var(--text);min-width:200px}
+  .fm-pop .nm{font-weight:800;font-size:13px;margin-bottom:2px}
+  .fm-pop .price{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin:4px 0 2px}
+  .fm-pop .price small{font-size:12px;font-weight:600;color:var(--muted)}
+  .fm-pop .row{color:var(--muted);margin-top:2px}
+  .fm-pop .pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#fff;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:2px}
+  .fm-pop .pill.s-green{background:var(--green)}
+  .fm-pop .pill.s-amber{background:var(--amber)}
+  .fm-pop .pill.s-red{background:var(--red)}
+  .fm-pop .pill.s-gray{background:var(--gray)}
+  .fm-pop .foot{margin-top:8px;padding-top:7px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+
+  /* ---------- Ops panel ---------- */
+  .panel{
+    position:fixed;top:74px;right:14px;z-index:1100;width:296px;max-height:calc(100% - 96px);
+    overflow:auto;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:14px 16px;transition:transform .25s ease,opacity .25s ease;
+  }
+  body.panel-hidden .panel{transform:translateX(115%);opacity:0;pointer-events:none}
+  .panel h2{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .modechip{font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--sign-dark);background:rgba(26,86,196,.1);border:1px solid rgba(26,86,196,.3);padding:2px 8px;border-radius:999px}
+  .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px}
+  .stat .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .kv{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;font-variant-numeric:tabular-nums}
+  .kv .k{color:var(--muted)}
+  .cheap{
+    margin:8px 0 2px;padding:9px 10px;border:1px solid var(--line);border-left:4px solid var(--green);
+    border-radius:10px;background:var(--chalk);font-size:12px;
+  }
+  .cheap b{display:block;font-size:12.5px;margin-bottom:1px}
+  .cheap .go{margin-top:6px;border:0;background:var(--sign);color:#fff;font-size:11px;font-weight:800;letter-spacing:.05em;padding:5px 10px;border-radius:8px}
+  .cheap .go:hover{background:var(--sign-dark)}
+  .divider{height:1px;background:var(--line);margin:12px 0}
+  .legend{font-size:12px}
+  .legend .lg{display:flex;align-items:center;gap:8px;padding:2.5px 0;color:var(--text)}
+  .legend .sw{width:12px;height:12px;border-radius:50%;flex:none;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+  .legend .cap{margin-top:7px;color:var(--muted);font-size:11.5px;line-height:1.5}
+  .sample-tag{margin-top:12px;display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#8a5a00;background:#fff7e6;border:1px solid #f2d9a0;border-radius:9px;padding:7px 10px}
+  .src-link{margin-top:10px;width:100%;border:1px solid var(--line);background:#fff;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px;border-radius:9px}
+  .src-link:hover{background:var(--chalk)}
+
+  .panel-toggle{
+    position:fixed;top:74px;right:14px;z-index:1101;width:38px;height:38px;border-radius:11px;
+    border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);
+    display:none;align-items:center;justify-content:center;font-size:16px;color:var(--ink);
+  }
+  body.panel-hidden .panel-toggle{display:flex}
+
+  /* Zoom hint + tile warning */
+  .hint{
+    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:1100;
+    background:rgba(16,24,40,.88);color:#fff;font-size:12px;font-weight:600;letter-spacing:.02em;
+    padding:8px 14px;border-radius:999px;pointer-events:none;transition:opacity .3s;
+  }
+  .hint.off{opacity:0}
+  .tilewarn{
+    position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:1100;display:none;
+    background:#fff7e6;border:1px solid #f2d9a0;color:#8a5a00;font-size:12px;font-weight:600;
+    padding:7px 14px;border-radius:10px;box-shadow:var(--shadow);
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-bg{position:fixed;inset:0;z-index:2000;background:rgba(10,14,22,.55);display:none;align-items:center;justify-content:center;padding:18px}
+  .modal-bg.open{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:86vh;overflow:auto;padding:22px 24px;box-shadow:var(--shadow)}
+  .modal h3{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+  .modal h4{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+  .modal p,.modal li{font-size:13px;line-height:1.6;color:var(--text)}
+  .modal ul{padding-left:0;list-style:none}
+  .modal li{padding:6px 0;border-bottom:1px dashed var(--line)}
+  .modal li b{font-weight:800}
+  .modal li .tag{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px}
+  .modal li .tag.ok{color:#0b6b38;background:#e5f6ec}
+  .modal li .tag.part{color:#8a5a00;background:#fff3d6}
+  .modal .close{border:0;background:var(--chalk);width:30px;height:30px;border-radius:9px;font-size:15px;color:var(--muted)}
+  .modal .close:hover{background:var(--line)}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;animation:none !important}
+  }
+  @media (max-width: 860px){
+    header{padding:8px 12px;gap:6px 8px}
+    .seg{order:3;width:100%;margin-left:0;justify-content:stretch}
+    .cseg{order:4}
+    .seg button{flex:1;padding:8px 4px;font-size:11px}
+    .head-right{margin-left:auto}
+    .snapshot{display:none}
+    .panel{right:10px;width:min(296px,calc(100vw - 20px))}
+    .panel-toggle{right:10px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+    <h1>FuelGrid Europe</h1>
+    <span class="ver">Prototype v0.1</span>
+  </div>
+  <nav class="seg fseg" role="group" aria-label="Energy type">
+    <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
+    <button data-fuel="hvo" aria-pressed="false">HVO100</button>
+    <button data-fuel="ev" aria-pressed="false">EV charging</button>
+  </nav>
+  <nav class="seg cseg" role="group" aria-label="Countries">
+    <button class="cbtn" data-cc="ES" aria-pressed="true">🇪🇸 ES</button>
+    <button class="cbtn" data-cc="FR" aria-pressed="true">🇫🇷 FR</button>
+    <button class="cbtn" data-cc="DE" aria-pressed="true">🇩🇪 DE</button>
+    <button class="cbtn" data-cc="IT" aria-pressed="true">🇮🇹 IT</button>
+  </nav>
+  <div class="head-right">
+    <span class="snapshot" id="snapshot">Sample snapshot · Mon 29 Jun 2026</span>
+    <button class="btn-ghost" id="srcBtn">Sources</button>
+  </div>
+</header>
+
+<div id="map" role="application" aria-label="Fuel price map of Spain, France, Germany and Italy"></div>
+
+<button class="panel-toggle" id="panelOpen" aria-label="Show statistics panel">☰</button>
+
+<aside class="panel" id="panel">
+  <h2>In current view <span class="modechip" id="modeChip">Regional</span>
+    <button class="close" id="panelClose" style="border:0;background:transparent;font-size:15px;color:var(--muted);cursor:pointer" aria-label="Hide panel">✕</button>
+  </h2>
+  <div class="stats">
+    <div class="stat"><div class="v" id="stCount">–</div><div class="l">Stations</div></div>
+    <div class="stat"><div class="v" id="stAvg">–</div><div class="l">Avg</div></div>
+    <div class="stat"><div class="v" id="stRange">–</div><div class="l">Min–Max</div></div>
+  </div>
+  <div id="pricedNote" style="font-size:11px;color:var(--muted);display:none"></div>
+  <div class="cheap" id="cheapBox" style="display:none">
+    <span style="font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--green)">Cheapest in view</span>
+    <b id="cheapName">–</b>
+    <span id="cheapPrice" style="font-variant-numeric:tabular-nums"></span>
+    <button class="go" id="cheapGo">Go to station</button>
+  </div>
+  <div class="divider"></div>
+  <h2 id="natTitle">National average</h2>
+  <div id="natTable"></div>
+  <div class="divider"></div>
+  <div class="legend">
+    <div class="lg"><span class="sw" style="background:var(--green)"></span><span id="lgGreen">Cheap</span></div>
+    <div class="lg"><span class="sw" style="background:var(--amber)"></span><span id="lgAmber">Average</span></div>
+    <div class="lg"><span class="sw" style="background:var(--red)"></span><span id="lgRed">Expensive</span></div>
+    <div class="lg" id="lgGrayRow"><span class="sw" style="background:var(--gray)"></span><span id="lgGray">No published price</span></div>
+    <div class="cap" id="legendCap"></div>
+  </div>
+  <div class="sample-tag">⚠ Sample data — live pipeline pending</div>
+  <button class="src-link" id="srcBtn2">Sources &amp; methodology →</button>
+</aside>
+
+<div class="hint" id="hint">Zoom in for individual stations</div>
+<div class="tilewarn" id="tileWarn">Basemap tiles unavailable in this preview — the data layer is fully functional.</div>
+
+<div class="modal-bg" id="modalBg" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <h3 id="modalTitle">Sources &amp; methodology <button class="close" id="modalClose" aria-label="Close">✕</button></h3>
+
+    <h4>How the traffic light works</h4>
+    <p><b>Zoomed out (regional view):</b> each bubble is a cluster of stations. Its colour compares the area's average price with the <i>national</i> average of each station's own country — green ≤ −1.5%, red ≥ +1.5%, amber in between. This keeps colours meaningful across borders.</p>
+    <p style="margin-top:6px"><b>Zoomed in (station view):</b> colours re-rank against the stations <i>currently on screen</i> — cheapest third green, middle third amber, priciest third red — so you can always spot the best stop on a route.</p>
+
+    <h4>Planned live data sources</h4>
+    <ul>
+      <li>🇪🇸 <b>Spain</b> — Geoportal Gasolineras, MITECO open data <span class="tag ok">Full · station-level</span></li>
+      <li>🇫🇷 <b>France</b> — prix-carburants.gouv.fr official open data <span class="tag ok">Full · station-level</span></li>
+      <li>🇩🇪 <b>Germany</b> — Tankerkönig API (MTS-K, Bundeskartellamt) <span class="tag ok">Full · near real-time</span></li>
+      <li>🇮🇹 <b>Italy</b> — Osservaprezzi Carburanti, MIMIT open data <span class="tag ok">Full · daily</span></li>
+      <li>🌿 <b>HVO100</b> — operator directories (Repsol/Moeve, TotalEnergies XTL, Eni HVOlution, German independents) <span class="tag part">Partial · prices patchy</span></li>
+      <li>⚡ <b>EV charging</b> — Open Charge Map locations + operator tariff pages <span class="tag part">Locations good · tariffs vary by plan</span></li>
+      <li>🗺 <b>Basemap</b> — © OpenStreetMap contributors · © CARTO</li>
+    </ul>
+
+    <h4>Current status</h4>
+    <p>This prototype runs on <b>generated sample data</b> shaped like the real feeds: national price levels, motorway premiums, low-cost brands (E.Leclerc, Ballenoil, Jet, pompe bianche…), and cross-border differences are all modelled so the interface behaves realistically. Next step: a weekly GitHub Actions pipeline replaces the samples with the live sources above, refreshing every Monday 06:00 UTC.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+/*APP-JS-START*/
+(function(){
+'use strict';
+
+/* ---------------- utilities ---------------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};}
+var rand=mulberry32(20260629);
+function gauss(){var u=0,v=0;while(u===0)u=rand();while(v===0)v=rand();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function pickW(items){var tot=0,i;for(i=0;i<items.length;i++)tot+=items[i].w;var r=rand()*tot;for(i=0;i<items.length;i++){r-=items[i].w;if(r<=0)return items[i];}return items[items.length-1];}
+function clamp(x,a,b){return Math.min(b,Math.max(a,x));}
+function debounce(fn,ms){var t;return function(){clearTimeout(t);t=setTimeout(fn,ms);};}
+function fmtInt(n){return n.toLocaleString('en-GB');}
+function el(id){return document.getElementById(id);}
+
+/* ---------------- static configuration ---------------- */
+var COUNTRY={
+ ES:{name:'Spain',flag:'\uD83C\uDDEA\uD83C\uDDF8',base:1.439,regAmp:0.012,mwy:[0.05,0.10],hvoShare:0.07,hvoPrem:[0.10,0.20],hvoBrands:['Repsol','Moeve']},
+ FR:{name:'France',flag:'\uD83C\uDDEB\uD83C\uDDF7',base:1.652,regAmp:0.020,mwy:[0.12,0.22],hvoShare:0.03,hvoPrem:[0.14,0.26],hvoBrands:['TotalEnergies']},
+ DE:{name:'Germany',flag:'\uD83C\uDDE9\uD83C\uDDEA',base:1.618,regAmp:0.018,mwy:[0.10,0.20],hvoShare:0.05,hvoPrem:[0.10,0.22],hvoBrands:['Shell','HEM','Raiffeisen','Freie Tankstelle']},
+ IT:{name:'Italy',flag:'\uD83C\uDDEE\uD83C\uDDF9',base:1.679,regAmp:0.022,mwy:[0.09,0.17],hvoShare:0.09,hvoPrem:[0.06,0.16],hvoBrands:['Eni']}
+};
+var BRANDS={
+ ES:[{n:'Repsol',o:0.020,w:22},{n:'Moeve',o:0.014,w:13},{n:'Galp',o:0.000,w:7},{n:'BP',o:0.020,w:7},{n:'Shell',o:0.028,w:4},{n:'Ballenoil',o:-0.060,w:8},{n:'Plenoil',o:-0.058,w:7},{n:'Petroprix',o:-0.055,w:5},{n:'Avia',o:0.005,w:4}],
+ FR:[{n:'TotalEnergies',o:0.030,w:18},{n:'Total Access',o:-0.020,w:9},{n:'E.Leclerc',o:-0.060,w:14},{n:'Intermarch\u00e9',o:-0.052,w:12},{n:'Carrefour',o:-0.050,w:8},{n:'Syst\u00e8me U',o:-0.048,w:7},{n:'Auchan',o:-0.050,w:5},{n:'Esso',o:0.018,w:6},{n:'Avia',o:0.008,w:6},{n:'BP',o:0.020,w:3},{n:'Shell',o:0.030,w:3}],
+ DE:[{n:'Aral',o:0.030,w:18},{n:'Shell',o:0.030,w:15},{n:'Esso',o:0.012,w:9},{n:'TotalEnergies',o:0.015,w:9},{n:'Jet',o:-0.030,w:9},{n:'Star',o:-0.028,w:6},{n:'HEM',o:-0.028,w:5},{n:'Agip Eni',o:0.010,w:5},{n:'Avia',o:0.005,w:7},{n:'Raiffeisen',o:-0.010,w:5},{n:'Freie Tankstelle',o:-0.020,w:8}],
+ IT:[{n:'Eni',o:0.028,w:20},{n:'IP',o:0.010,w:16},{n:'Q8',o:0.012,w:12},{n:'Esso',o:0.015,w:8},{n:'Tamoil',o:-0.018,w:8},{n:'Pompa Bianca',o:-0.058,w:20}]
+};
+var CITIES=[
+ ['Madrid','ES',40.4168,-3.7038,3],['Barcelona','ES',41.3874,2.1686,3],['Valencia','ES',39.4699,-0.3763,2],
+ ['Sevilla','ES',37.3891,-5.9845,2],['Zaragoza','ES',41.6488,-0.8891,2],['M\u00e1laga','ES',36.7213,-4.4213,2],
+ ['Bilbao','ES',43.2630,-2.9350,2],['Murcia','ES',37.9922,-1.1307,1],['Alicante','ES',38.3452,-0.4810,1],
+ ['Valladolid','ES',41.6523,-4.7245,1],['Vigo','ES',42.2406,-8.7207,1],['A Coru\u00f1a','ES',43.3623,-8.4115,1],
+ ['Granada','ES',37.1773,-3.5986,1],['Burgos','ES',42.3439,-3.6969,1],['Badajoz','ES',38.8794,-6.9707,1],
+ ['Albacete','ES',38.9943,-1.8585,1],['Le\u00f3n','ES',42.5987,-5.5671,1],['Tarragona','ES',41.1189,1.2445,1],
+ ['C\u00f3rdoba','ES',37.8882,-4.7794,1],['San Sebasti\u00e1n','ES',43.3183,-1.9812,1],['Santander','ES',43.4623,-3.8100,1],
+ ['Toledo','ES',39.8628,-4.0273,1],
+ ['Paris','FR',48.8566,2.3522,3],['Lyon','FR',45.7640,4.8357,3],['Marseille','FR',43.2965,5.3698,2],
+ ['Toulouse','FR',43.6047,1.4442,2],['Bordeaux','FR',44.8378,-0.5792,2],['Nantes','FR',47.2184,-1.5536,2],
+ ['Lille','FR',50.6292,3.0573,2],['Strasbourg','FR',48.5734,7.7521,2],['Rennes','FR',48.1173,-1.6778,1],
+ ['Montpellier','FR',43.6108,3.8767,2],['Nice','FR',43.7102,7.2620,2],['Dijon','FR',47.3220,5.0415,1],
+ ['Clermont-Ferrand','FR',45.7772,3.0870,1],['Tours','FR',47.3941,0.6848,1],['Limoges','FR',45.8336,1.2611,1],
+ ['Reims','FR',49.2583,4.0317,1],['Le Havre','FR',49.4944,0.1079,1],['Orl\u00e9ans','FR',47.9029,1.9092,1],
+ ['Metz','FR',49.1193,6.1757,1],['Perpignan','FR',42.6887,2.8948,1],['Brest','FR',48.3904,-4.4861,1],
+ ['Caen','FR',49.1829,-0.3707,1],['Pau','FR',43.2951,-0.3708,1],['Grenoble','FR',45.1885,5.7245,1],
+ ['Nancy','FR',48.6921,6.1844,1],['Avignon','FR',43.9493,4.8055,1],['Poitiers','FR',46.5802,0.3404,1],
+ ['Berlin','DE',52.5200,13.4050,3],['Hamburg','DE',53.5511,9.9937,3],['Munich','DE',48.1351,11.5820,3],
+ ['Cologne','DE',50.9375,6.9603,3],['Frankfurt','DE',50.1109,8.6821,3],['Stuttgart','DE',48.7758,9.1829,2],
+ ['D\u00fcsseldorf','DE',51.2277,6.7735,2],['Leipzig','DE',51.3397,12.3731,2],['Dortmund','DE',51.5136,7.4653,2],
+ ['Essen','DE',51.4556,7.0116,2],['Bremen','DE',53.0793,8.8017,2],['Dresden','DE',51.0504,13.7373,2],
+ ['Hannover','DE',52.3759,9.7320,2],['Nuremberg','DE',49.4521,11.0767,2],['Duisburg','DE',51.4344,6.7623,1],
+ ['Mannheim','DE',49.4875,8.4660,1],['Karlsruhe','DE',49.0069,8.4037,1],['Augsburg','DE',48.3705,10.8978,1],
+ ['Wiesbaden','DE',50.0782,8.2398,1],['M\u00fcnster','DE',51.9607,7.6261,1],['Kassel','DE',51.3127,9.4797,1],
+ ['Freiburg','DE',47.9990,7.8421,1],['Erfurt','DE',50.9848,11.0299,1],['Rostock','DE',54.0924,12.0991,1],
+ ['Kiel','DE',54.3233,10.1228,1],['Magdeburg','DE',52.1315,11.6399,1],['Regensburg','DE',49.0134,12.1016,1],
+ ['W\u00fcrzburg','DE',49.7913,9.9534,1],['Ulm','DE',48.4011,9.9876,1],['Osnabr\u00fcck','DE',52.2799,8.0472,1],
+ ['Rome','IT',41.9028,12.4964,3],['Milan','IT',45.4642,9.1900,3],['Naples','IT',40.8518,14.2681,3],
+ ['Turin','IT',45.0703,7.6869,2],['Palermo','IT',38.1157,13.3615,2],['Genoa','IT',44.4056,8.9463,2],
+ ['Bologna','IT',44.4949,11.3426,2],['Florence','IT',43.7696,11.2558,2],['Bari','IT',41.1171,16.8719,2],
+ ['Catania','IT',37.5079,15.0830,2],['Venice','IT',45.4408,12.3155,2],['Verona','IT',45.4384,10.9916,1],
+ ['Messina','IT',38.1938,15.5540,1],['Padua','IT',45.4064,11.8768,1],['Trieste','IT',45.6495,13.7768,1],
+ ['Brescia','IT',45.5416,10.2118,1],['Parma','IT',44.8015,10.3279,1],['Modena','IT',44.6471,10.9252,1],
+ ['Reggio Calabria','IT',38.1105,15.6613,1],['Perugia','IT',43.1122,12.3888,1],['Cagliari','IT',39.2238,9.1217,1],
+ ['Ancona','IT',43.6158,13.5189,1],['Pescara','IT',42.4618,14.2161,1],['Salerno','IT',40.6824,14.7681,1],
+ ['Sassari','IT',40.7259,8.5557,1],['Pisa','IT',43.7228,10.4017,1],['Udine','IT',46.0711,13.2346,1]
+];
+var CORRIDORS=[
+ ['Madrid','Zaragoza','A-2'],['Zaragoza','Barcelona','AP-2'],['Madrid','Valencia','A-3'],
+ ['Madrid','C\u00f3rdoba','A-4'],['C\u00f3rdoba','Sevilla','A-4'],['Madrid','Burgos','A-1'],
+ ['Valencia','Alicante','A-7'],['Sevilla','M\u00e1laga','A-92'],['Burgos','Bilbao','AP-68'],
+ ['Paris','Lyon','A6'],['Lyon','Avignon','A7'],['Avignon','Marseille','A7'],['Paris','Lille','A1'],
+ ['Paris','Tours','A10'],['Tours','Bordeaux','A10'],['Bordeaux','Toulouse','A62'],['Toulouse','Montpellier','A61'],
+ ['Montpellier','Perpignan','A9'],['Paris','Reims','A4'],['Reims','Metz','A4'],['Metz','Strasbourg','A4'],
+ ['Lyon','Grenoble','A48'],['Paris','Rennes','A81'],
+ ['Perpignan','Barcelona','AP-7'],['Bordeaux','San Sebasti\u00e1n','A63'],['Strasbourg','Karlsruhe','A5'],
+ ['Nice','Genoa','A10'],['Lyon','Turin','A43'],
+ ['Berlin','Hamburg','A24'],['Berlin','Leipzig','A9'],['Leipzig','Nuremberg','A9'],['Nuremberg','Munich','A9'],
+ ['Munich','Stuttgart','A8'],['Stuttgart','Karlsruhe','A8'],['Frankfurt','Cologne','A3'],['Cologne','Dortmund','A1'],
+ ['Hamburg','Hannover','A7'],['Hannover','Berlin','A2'],['Frankfurt','W\u00fcrzburg','A3'],['W\u00fcrzburg','Nuremberg','A3'],
+ ['Hannover','Dortmund','A2'],
+ ['Milan','Bologna','A1'],['Bologna','Florence','A1'],['Florence','Rome','A1'],['Rome','Naples','A1'],
+ ['Turin','Milan','A4'],['Milan','Brescia','A4'],['Brescia','Verona','A4'],['Verona','Venice','A4'],
+ ['Bologna','Ancona','A14'],['Ancona','Pescara','A14'],['Naples','Bari','A16'],['Naples','Salerno','A3']
+];
+var EV_TYPES=[{t:'AC',kw:22,base:0.40,w:5},{t:'DC',kw:50,base:0.54,w:3},{t:'HPC',kw:0,base:0.64,w:4}];
+var EV_PAN=[{n:'Ionity',o:0.10,w:2,hp:1},{n:'Tesla Supercharger',o:-0.12,w:2,hp:1},{n:'Fastned',o:0.05,w:1,hp:1},{n:'Allego',o:0.03,w:2},{n:'TotalEnergies Charge',o:0.02,w:2}];
+var EV_OPS={
+ ES:[{n:'Iberdrola',o:-0.02,w:6},{n:'Endesa X',o:0.00,w:4},{n:'Repsol',o:0.01,w:4},{n:'Zunder',o:0.03,w:3},{n:'Wenea',o:0.02,w:3}],
+ FR:[{n:'Electra',o:0.02,w:5},{n:'Engie Vianeo',o:0.03,w:4},{n:'IZIVIA',o:0.01,w:4},{n:'TotalEnergies Charge',o:0.02,w:4}],
+ DE:[{n:'EnBW',o:0.04,w:7},{n:'Aral pulse',o:0.06,w:5},{n:'EWE Go',o:0.02,w:3},{n:'Mer',o:0.00,w:2}],
+ IT:[{n:'Enel',o:0.02,w:7},{n:'Be Charge',o:0.03,w:4},{n:'Free To X',o:0.05,w:3},{n:'A2A',o:0.01,w:3}]
+};
+
+/* ---------------- sample data generation ---------------- */
+var stations={diesel:[],hvo:[],ev:[]};
+var cityByName={};
+CITIES.forEach(function(c){cityByName[c[0]]=c;});
+
+function regionField(lat,lng){
+ return Math.sin(lat*0.55+1.7)*0.5+Math.cos(lng*0.45-0.6)*0.5+Math.sin((lat*0.9+lng*0.6)*0.35+2.1)*0.4;
+}
+function dieselPrice(cc,lat,lng,w,mwy,brandOff){
+ var C=COUNTRY[cc];
+ var p=C.base + regionField(lat,lng)*C.regAmp + brandOff - (0.004*w + rand()*0.004);
+ if(mwy) p += C.mwy[0] + rand()*(C.mwy[1]-C.mwy[0]);
+ p += gauss()*0.020;
+ return clamp(Math.round(p*1000)/1000, C.base-0.14, C.base+0.32);
+}
+function addStation(lat,lng,cc,b,name,mwy,road,w){
+ var p=dieselPrice(cc,lat,lng,w||1,mwy,b.o);
+ stations.diesel.push({lat:lat,lng:lng,cc:cc,brand:b.n,name:name,p:p,mwy:mwy,road:road||null});
+ var C=COUNTRY[cc];
+ var prob=C.hvoShare*(C.hvoBrands.indexOf(b.n)>=0?3.4:0.35)*(mwy?1.6:1);
+ if(rand()<clamp(prob,0,0.85)){
+  var hp=rand()<0.15?null:Math.round((p+C.hvoPrem[0]+rand()*(C.hvoPrem[1]-C.hvoPrem[0])+gauss()*0.02)*1000)/1000;
+  stations.hvo.push({lat:lat,lng:lng,cc:cc,brand:b.n,name:name+' (HVO100)',p:hp,mwy:mwy,road:road||null});
+ }
+}
+CITIES.forEach(function(c){
+ var name=c[0],cc=c[1],lat=c[2],lng=c[3],w=c[4];
+ var cosl=Math.cos(lat*Math.PI/180);
+ var n=Math.round((7+w*8)*(0.85+rand()*0.3));
+ var i,s,la,lo,b;
+ for(i=0;i<n;i++){
+  s=0.03*(1+w*0.4);
+  la=lat+gauss()*s; lo=lng+gauss()*s/cosl;
+  b=pickW(BRANDS[cc]);
+  addStation(la,lo,cc,b,b.n+' \u00b7 '+name,false,null,w);
+ }
+ var r=3+Math.floor(rand()*4);
+ for(i=0;i<r;i++){
+  la=lat+gauss()*0.30; lo=lng+gauss()*0.30/cosl;
+  b=pickW(BRANDS[cc]);
+  addStation(la,lo,cc,b,b.n+' \u00b7 nr. '+name,false,null,1);
+ }
+});
+CORRIDORS.forEach(function(cor){
+ var A=cityByName[cor[0]],B=cityByName[cor[1]],road=cor[2];
+ var n=8+Math.floor(rand()*8);
+ for(var i=0;i<n;i++){
+  var t=0.06+rand()*0.88;
+  var la=A[2]+(B[2]-A[2])*t+gauss()*0.02;
+  var lo=A[3]+(B[3]-A[3])*t+gauss()*0.02;
+  var cc=t<0.5?A[1]:B[1];
+  var b=pickW(BRANDS[cc]);
+  addStation(la,lo,cc,b,b.n+' \u00b7 '+road,true,road,1);
+ }
+});
+function evPrice(base,off){return Math.round(clamp(base+off+gauss()*0.03,0.25,0.95)*100)/100;}
+function addCharger(lat,lng,cc,urbanName,road){
+ var op=pickW(EV_OPS[cc].concat(EV_PAN));
+ var ty=road?EV_TYPES[2]:pickW(EV_TYPES);
+ if(op.hp)ty=EV_TYPES[2];
+ var kw=ty.kw||[150,200,250,300,350][Math.floor(rand()*5)];
+ if(op.n==='Tesla Supercharger')kw=250;
+ if(op.n==='Ionity')kw=350;
+ var p=(rand()<(road?0.15:0.30))?null:evPrice(road?0.72:ty.base,op.o);
+ var plugs=ty.t==='AC'?2+Math.floor(rand()*3):(op.n==='Tesla Supercharger'?8+Math.floor(rand()*13):2+Math.floor(rand()*(road?9:5)));
+ stations.ev.push({lat:lat,lng:lng,cc:cc,brand:op.n,name:op.n+' \u00b7 '+(road||urbanName),p:p,mwy:!!road,road:road||null,kw:kw,plugs:plugs,ty:ty.t});
+}
+CITIES.forEach(function(c){
+ var n=2+c[4]*3+Math.floor(rand()*3);
+ var cosl=Math.cos(c[2]*Math.PI/180);
+ for(var i=0;i<n;i++){
+  var s=0.03*(1+c[4]*0.4);
+  addCharger(c[2]+gauss()*s,c[3]+gauss()*s/cosl,c[1],c[0],null);
+ }
+});
+CORRIDORS.forEach(function(cor){
+ var A=cityByName[cor[0]],B=cityByName[cor[1]];
+ var n=2+Math.floor(rand()*3);
+ for(var i=0;i<n;i++){
+  var t=0.1+rand()*0.8;
+  addCharger(A[2]+(B[2]-A[2])*t+gauss()*0.015,A[3]+(B[3]-A[3])*t+gauss()*0.015,t<0.5?A[1]:B[1],null,cor[2]);
+ }
+});
+
+/* national averages per fuel per country (priced entries only) */
+var AVG={};
+Object.keys(stations).forEach(function(f){
+ AVG[f]={};var sums={},cnt={};
+ stations[f].forEach(function(s){if(s.p==null)return;sums[s.cc]=(sums[s.cc]||0)+s.p;cnt[s.cc]=(cnt[s.cc]||0)+1;});
+ Object.keys(COUNTRY).forEach(function(cc){AVG[f][cc]=cnt[cc]?sums[cc]/cnt[cc]:null;});
+});
+
+/* ---------------- map ---------------- */
+var reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var map=L.map('map',{preferCanvas:true,minZoom:4,maxZoom:17});
+map.fitBounds([[35.6,-10.6],[55.6,17.0]]);
+/* Basemap with graceful degradation:
+   1) Carto light tiles  2) OpenStreetMap tiles  3) built-in simplified
+   vector basemap (country shapes) for environments that block tile servers. */
+var PROVIDERS=[
+ {url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',opt:{subdomains:'abcd',maxZoom:19,attribution:'&copy; OpenStreetMap contributors &copy; CARTO'}},
+ {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',opt:{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}}
+];
+/* Simplified land shapes (approximate, for offline fallback only) as [lat,lng] rings */
+var LAND=[
+ /* Portugal */[[41.87,-8.87],[42.1,-8.2],[41.95,-7.9],[41.9,-6.6],[41.5,-6.3],[40.2,-6.85],[39.4,-7.3],[38.8,-7.05],[38.2,-7.0],[37.5,-7.45],[37.17,-7.4],[37.0,-7.9],[37.02,-8.94],[38.4,-9.2],[38.7,-9.48],[39.4,-9.35],[40.15,-8.87],[41.15,-8.68]],
+ /* Spain */[[43.35,-1.79],[43.39,-3.0],[43.46,-3.8],[43.55,-5.66],[43.56,-7.04],[43.79,-7.68],[43.36,-8.41],[42.88,-9.27],[42.2,-8.8],[41.87,-8.87],[42.1,-8.2],[41.95,-7.9],[41.9,-6.6],[41.5,-6.3],[40.2,-6.85],[39.4,-7.3],[38.8,-7.05],[38.2,-7.0],[37.5,-7.45],[37.17,-7.4],[36.85,-6.35],[36.53,-6.3],[36.0,-5.61],[36.13,-5.35],[36.5,-4.9],[36.72,-4.42],[36.72,-2.19],[37.4,-1.58],[37.6,-0.98],[37.98,-0.68],[38.34,-0.48],[38.73,0.16],[39.47,-0.32],[39.98,0.03],[40.7,0.87],[41.12,1.25],[41.38,2.17],[41.7,2.95],[42.26,3.28],[42.43,3.17],[42.4,2.0],[42.55,1.45],[42.8,0.65],[42.9,-0.3],[43.0,-1.3]],
+ /* France */[[43.37,-1.79],[43.48,-1.56],[44.2,-1.25],[45.57,-1.06],[46.15,-1.15],[47.0,-2.05],[47.28,-2.5],[47.55,-3.15],[47.8,-4.37],[48.04,-4.73],[48.4,-4.78],[48.72,-3.98],[48.85,-3.0],[48.68,-2.0],[48.63,-1.5],[49.4,-1.85],[49.72,-1.88],[49.4,-1.1],[49.35,-0.4],[49.44,0.1],[49.9,1.1],[50.4,1.55],[50.96,1.85],[51.05,2.35],[50.75,3.15],[50.3,3.9],[50.0,4.2],[49.95,4.85],[49.55,5.45],[49.45,5.9],[49.47,6.36],[49.15,7.0],[48.97,8.23],[48.6,7.8],[47.98,7.62],[47.58,7.58],[47.5,7.0],[47.35,6.9],[47.0,6.5],[46.55,6.15],[46.25,6.12],[46.13,6.8],[45.93,7.0],[45.2,7.1],[45.1,6.63],[44.7,6.95],[44.35,6.9],[44.05,7.4],[43.78,7.51],[43.55,7.02],[43.2,6.65],[43.1,5.93],[43.33,5.35],[43.45,4.6],[43.55,4.1],[43.28,3.3],[42.9,3.03],[42.43,3.17],[42.4,2.0],[42.55,1.45],[42.8,0.65],[42.9,-0.3],[43.0,-1.3]],
+ /* Corsica */[[43.0,9.43],[42.0,9.4],[41.37,9.22],[41.55,8.8],[42.35,8.57],[42.72,8.72]],
+ /* Benelux */[[51.05,2.35],[51.37,3.37],[51.45,3.5],[52.0,4.05],[52.5,4.55],[53.0,4.75],[53.2,5.1],[53.4,6.1],[53.35,7.05],[52.65,7.05],[52.23,7.06],[51.9,6.75],[51.6,6.1],[51.2,6.08],[50.75,6.02],[49.98,6.13],[49.47,6.36],[49.45,5.9],[49.55,5.45],[49.95,4.85],[50.0,4.2],[50.3,3.9],[50.75,3.15]],
+ /* Germany */[[53.35,7.05],[53.7,7.6],[53.87,8.7],[54.3,8.6],[54.85,8.6],[54.8,9.42],[54.4,10.2],[54.4,11.1],[53.95,11.45],[54.18,12.1],[54.55,13.35],[53.9,14.22],[53.4,14.4],[52.85,14.15],[52.6,14.63],[52.1,14.75],[51.6,14.75],[51.05,14.98],[50.85,14.3],[50.7,13.5],[50.4,12.35],[50.25,12.09],[49.9,12.45],[49.5,12.6],[49.1,13.4],[48.77,13.82],[48.57,13.45],[47.9,12.95],[47.75,13.0],[47.6,12.2],[47.4,11.3],[47.55,10.7],[47.4,10.2],[47.5,9.75],[47.58,8.6],[47.58,7.58],[47.98,7.62],[48.6,7.8],[48.97,8.23],[49.15,7.0],[49.47,6.36],[49.98,6.13],[50.75,6.02],[51.2,6.08],[51.9,6.75],[52.23,7.06],[52.65,7.05]],
+ /* Switzerland */[[47.58,7.58],[47.58,8.6],[47.5,9.75],[47.05,9.62],[46.85,10.1],[46.45,10.05],[46.2,9.3],[46.0,9.0],[45.83,9.02],[46.1,8.7],[46.05,7.85],[45.93,7.0],[46.13,6.8],[46.25,6.12],[46.55,6.15],[47.0,6.5],[47.35,6.9],[47.5,7.0]],
+ /* Austria */[[47.5,9.75],[47.27,9.53],[47.05,9.62],[46.85,10.1],[46.85,10.47],[46.95,10.75],[47.0,11.5],[46.9,12.28],[46.62,12.5],[46.45,13.7],[46.5,14.6],[46.55,15.65],[46.7,16.0],[47.0,16.5],[47.7,16.65],[48.0,17.1],[48.72,16.9],[48.78,15.9],[48.6,14.95],[48.77,13.82],[48.57,13.45],[47.9,12.95],[47.75,13.0],[47.6,12.2],[47.4,11.3],[47.55,10.7],[47.4,10.2]],
+ /* Czechia */[[50.25,12.09],[50.4,12.35],[50.7,13.5],[50.85,14.3],[51.05,14.98],[50.87,15.3],[50.7,16.2],[50.4,16.9],[50.3,17.7],[49.9,18.3],[49.55,18.85],[48.72,16.9],[48.78,15.9],[48.6,14.95],[48.77,13.82],[49.1,13.4],[49.5,12.6],[49.9,12.45]],
+ /* Poland (west, clipped) */[[53.92,14.25],[54.18,15.7],[54.6,16.9],[54.8,18.3],[54.35,19.5],[49.2,19.5],[49.55,18.85],[49.9,18.3],[50.3,17.7],[50.4,16.9],[50.7,16.2],[50.87,15.3],[51.05,14.98],[51.6,14.75],[52.1,14.75],[52.6,14.63],[52.85,14.15],[53.4,14.4]],
+ /* Denmark (Jutland) */[[54.85,8.6],[55.5,8.3],[56.6,8.2],[57.45,9.8],[57.7,10.55],[56.5,10.85],[56.0,10.25],[55.3,9.5],[54.8,9.42]],
+ /* Italy mainland */[[43.78,7.51],[43.88,8.02],[44.3,8.45],[44.4,8.93],[44.03,9.85],[43.55,10.3],[42.93,10.5],[42.43,11.2],[42.05,11.82],[41.72,12.25],[41.45,12.62],[41.2,13.57],[40.85,14.25],[40.62,14.4],[40.55,14.9],[40.07,15.62],[39.35,16.03],[38.68,15.87],[38.22,15.63],[37.95,15.68],[38.3,16.3],[38.7,16.55],[39.08,17.13],[39.75,16.5],[40.35,16.8],[40.47,17.24],[40.05,17.98],[39.8,18.35],[40.15,18.5],[40.65,18.0],[41.13,16.87],[41.58,15.9],[41.9,16.15],[42.1,14.75],[42.46,14.22],[43.62,13.5],[44.06,12.57],[44.4,12.35],[44.95,12.55],[45.43,12.3],[45.65,13.75],[45.6,13.9],[45.9,13.63],[46.2,13.65],[46.45,13.7],[46.62,12.5],[46.9,12.28],[47.0,11.5],[46.95,10.75],[46.85,10.47],[46.45,10.05],[46.2,9.3],[46.0,9.0],[45.83,9.02],[46.1,8.7],[46.05,7.85],[45.93,7.0],[45.2,7.1],[45.1,6.63],[44.7,6.95],[44.35,6.9],[44.05,7.4]],
+ /* Sicily */[[38.26,15.63],[37.55,15.1],[37.06,15.29],[36.68,15.13],[36.72,14.5],[37.07,14.27],[37.27,13.58],[37.65,12.6],[37.8,12.44],[38.02,12.52],[38.2,13.37],[38.05,14.3],[38.22,15.24]],
+ /* Sardinia */[[41.25,9.2],[40.93,9.6],[40.25,9.75],[39.15,9.55],[39.1,9.02],[38.88,8.6],[39.05,8.4],[39.9,8.4],[40.57,8.2],[41.03,8.85]],
+ /* Great Britain */[[50.07,-5.7],[50.6,-2.4],[50.75,-1.0],[51.13,1.35],[51.95,1.28],[52.95,1.65],[53.5,0.1],[54.5,-0.5],[55.6,-1.6],[56.1,-2.8],[57.1,-2.05],[57.7,-1.9],[58.6,-3.05],[58.5,-5.0],[57.8,-5.7],[56.3,-5.6],[54.9,-3.6],[54.2,-3.2],[53.3,-4.6],[52.8,-4.75],[52.3,-4.1],[51.7,-5.1],[51.5,-3.7],[51.0,-4.4]],
+ /* Ireland */[[55.25,-7.35],[54.3,-10.0],[53.5,-10.1],[52.5,-9.9],[51.45,-9.6],[51.7,-8.5],[52.15,-7.0],[52.9,-6.0],[53.9,-6.1],[54.6,-5.6],[55.2,-6.1]],
+ /* Adriatic east coast (context) */[[45.6,13.9],[45.1,13.6],[44.85,13.9],[44.3,15.2],[43.5,16.4],[42.65,18.1],[42.3,18.6],[44.0,19.3],[45.6,17.2],[46.55,15.65],[46.5,14.6],[46.45,13.7],[45.9,13.63]]
+];
+var provIdx=0,tileLayer=null,fallbackOn=false;
+function enableVectorFallback(){
+ if(fallbackOn)return;fallbackOn=true;
+ if(tileLayer){map.removeLayer(tileLayer);tileLayer=null;}
+ el('map').style.background='#cfe0eb';
+ map.createPane('fallbackPane');
+ map.getPane('fallbackPane').style.zIndex=250;
+ LAND.forEach(function(ring){
+  L.polygon(ring,{pane:'fallbackPane',color:'#aeb9c6',weight:1,fillColor:'#f1eee6',fillOpacity:1,interactive:false}).addTo(map);
+ });
+ map.attributionControl.addAttribution('Simplified offline basemap');
+ var w=el('tileWarn');
+ w.textContent='Street tiles are blocked in this preview \u2014 showing a simplified basemap. Open the file in your browser (or host it) for the full street map.';
+ w.style.display='block';
+}
+function mountTiles(){
+ if(fallbackOn)return;
+ var settled=false,ok=0,errs=0;
+ var p=PROVIDERS[provIdx];
+ tileLayer=L.tileLayer(p.url,p.opt).addTo(map);
+ function advance(){
+  if(settled||ok>0)return;settled=true;
+  if(tileLayer){map.removeLayer(tileLayer);tileLayer=null;}
+  provIdx++;
+  if(provIdx<PROVIDERS.length)mountTiles();else enableVectorFallback();
+ }
+ tileLayer.on('tileload',function(){ok++;});
+ tileLayer.on('tileerror',function(){errs++;if(ok===0&&errs>=6)advance();});
+ setTimeout(function(){if(ok===0)advance();},5000);
+}
+mountTiles();
+L.control.scale({imperial:false}).addTo(map);
+function fitMap(){
+ var h=document.querySelector('header').offsetHeight;
+ el('map').style.top=h+'px';
+ el('panel').style.top=(h+14)+'px';
+ el('panel').style.maxHeight='calc(100% - '+(h+36)+'px)';
+ el('panelOpen').style.top=(h+14)+'px';
+ el('tileWarn').style.top=(h+12)+'px';
+ map.invalidateSize();
+}
+window.addEventListener('resize',debounce(fitMap,120));
+setTimeout(fitMap,50);setTimeout(fitMap,400);
+
+var stationLayer=L.layerGroup().addTo(map);
+var aggLayer=L.layerGroup().addTo(map);
+var STATION_ZOOM=8;
+var currentFuel='diesel';
+var META={
+ diesel:{label:'Diesel B7',unit:'\u20ac/L',dec:3},
+ hvo:{label:'HVO100',unit:'\u20ac/L',dec:3},
+ ev:{label:'EV charging',unit:'\u20ac/kWh',dec:2}
+};
+var COLORS={green:'#12a150',amber:'#f5a524',red:'#e5484d',gray:'#9aa3b2'};
+var cheapest=null, colorFor=null;
+var LIVE={diesel:false,hvo:false,ev:false};
+var SNAP='Mon 29 Jun 2026';
+var COUNTRY_ON={ES:true,FR:true,DE:true,IT:true};
+
+function fmtP(p){return p.toFixed(META[currentFuel].dec);}
+function relDelta(s){var a=AVG[currentFuel][s.cc];return a?(s.p-a)/a:0;}
+function deltaStatus(d){return d<=-0.015?'green':(d>=0.015?'red':'amber');}
+function statusLabel(k,mode){
+ if(k==='gray')return currentFuel==='ev'?'Tariff varies':'No price';
+ if(mode==='station')return k==='green'?'Cheapest \u2153 in view':(k==='red'?'Priciest \u2153 in view':'Middle \u2153');
+ return k==='green'?'Below national avg':(k==='red'?'Above national avg':'Around national avg');
+}
+
+/* ---------------- popup ---------------- */
+function popupHtml(s,mode){
+ var C=COUNTRY[s.cc],m=META[currentFuel];
+ var loc=s.mwy?('Motorway '+(s.road||'')):'Urban / local';
+ var html='<div class="fm-pop"><div class="nm">'+s.name+'</div>';
+ if(s.p==null){
+  html+='<div class="price" style="font-size:15px;color:#5d6779">'+(currentFuel==='ev'?'Tariff varies by operator / plan':'Price available on site')+'<span class="pill s-gray">n/a</span></div>';
+ }else{
+  var st=colorFor?colorFor(s):{k:deltaStatus(relDelta(s))};
+  html+='<div class="price">\u20ac'+fmtP(s.p)+' <small>'+m.unit.slice(1)+'</small><span class="pill s-'+st.k+'">'+statusLabel(st.k,mode)+'</span></div>';
+ }
+ html+='<div class="row">'+C.flag+' '+C.name+' \u00b7 '+loc+'</div>';
+ if(currentFuel==='ev')html+='<div class="row">'+s.ty+' \u00b7 '+s.kw+' kW \u00b7 '+s.plugs+' bays</div>';
+ if(s.p!=null){
+  var d=relDelta(s)*100;
+  html+='<div class="row">vs national avg: '+(d>=0?'+':'')+d.toFixed(1)+'%</div>';
+ }
+ html+='<div class="foot">Updated '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'sample data')+'</div></div>';
+ return html;
+}
+
+/* ---------------- refresh (core) ---------------- */
+function refresh(){
+ var z=map.getZoom();
+ var mode=z>=STATION_ZOOM?'station':'agg';
+ var b=map.getBounds(), bp=b.pad(0.25);
+ var data=stations[currentFuel];
+ var pad=[],strict=[],strictPriced=[];
+ for(var i=0;i<data.length;i++){
+  var s=data[i];
+  if(!COUNTRY_ON[s.cc])continue;
+  if(!bp.contains([s.lat,s.lng]))continue;
+  pad.push(s);
+  if(b.contains([s.lat,s.lng])){strict.push(s);if(s.p!=null)strictPriced.push(s);}
+ }
+ stationLayer.clearLayers();aggLayer.clearLayers();
+ colorFor=null;
+
+ if(mode==='station'){
+  var sorted=strictPriced.slice().sort(function(a,c){return a.p-c.p;});
+  if(sorted.length>=6){
+   var q1=sorted[Math.floor(sorted.length/3)].p;
+   var q2=sorted[Math.floor(2*sorted.length/3)].p;
+   colorFor=function(st){var k=st.p<=q1?'green':(st.p>=q2?'red':'amber');return{k:k,c:COLORS[k]};};
+  }else{
+   colorFor=function(st){var k=deltaStatus(relDelta(st));return{k:k,c:COLORS[k]};};
+  }
+  pad.forEach(function(st){
+   var col=st.p==null?COLORS.gray:colorFor(st).c;
+   var mk=L.circleMarker([st.lat,st.lng],{radius:6,color:'#ffffff',weight:1.5,fillColor:col,fillOpacity:0.92});
+   mk.on('click',function(){
+    L.popup({maxWidth:290}).setLatLng([st.lat,st.lng]).setContent(popupHtml(st,'station')).openOn(map);
+   });
+   stationLayer.addLayer(mk);
+  });
+ }else{
+  var cd=clamp((72/(256*Math.pow(2,z)))*360,0.08,8);
+  var cells={};
+  pad.forEach(function(st){
+   var key=Math.floor(st.lat/cd)+'_'+Math.floor(st.lng/cd);
+   var c=cells[key]||(cells[key]={sla:0,slo:0,n:0,sp:0,np:0,sd:0});
+   c.sla+=st.lat;c.slo+=st.lng;c.n++;
+   if(st.p!=null){c.sp+=st.p;c.np++;c.sd+=relDelta(st);}
+  });
+  Object.keys(cells).forEach(function(key){
+   var c=cells[key];
+   var la=c.sla/c.n,lo=c.slo/c.n;
+   var k,d=0,avgP=null,label;
+   if(c.np>0){avgP=c.sp/c.np;d=c.sd/c.np;k=deltaStatus(d);label=avgP.toFixed(2);}
+   else{k='gray';label=String(c.n);}
+   var dm=clamp(26+Math.sqrt(c.n)*2.6,26,58);
+   var fs=dm>=44?13.5:(dm>=32?12:11);
+   var icon=L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],
+     html:'<div class="agg s-'+k+'" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+label+'</div>'});
+   var mk=L.marker([la,lo],{icon:icon});
+   var tt;
+   if(avgP!=null){
+    tt=fmtInt(c.n)+(currentFuel==='ev'?' chargers':' stations')+' \u00b7 avg \u20ac'+fmtP(avgP)+' '+META[currentFuel].unit.slice(1)+' \u00b7 '+(d>=0?'+':'')+(d*100).toFixed(1)+'% vs national';
+   }else{
+    tt=fmtInt(c.n)+' chargers \u00b7 tariffs vary by plan';
+   }
+   mk.bindTooltip(tt,{direction:'top',offset:[0,-dm/2]});
+   mk.on('click',function(){
+    var tz=Math.max(z+2,z<STATION_ZOOM-1?z+2:STATION_ZOOM);
+    if(reduceMotion)map.setView([la,lo],tz);else map.flyTo([la,lo],tz,{duration:0.7});
+   });
+   aggLayer.addLayer(mk);
+  });
+ }
+
+ /* ---- panel ---- */
+ var m=META[currentFuel];
+ el('stCount').textContent=strict.length?fmtInt(strict.length):'0';
+ if(strictPriced.length){
+  var sum=0,mn=Infinity,mx=-Infinity;
+  strictPriced.forEach(function(st){sum+=st.p;if(st.p<mn)mn=st.p;if(st.p>mx)mx=st.p;});
+  el('stAvg').textContent='\u20ac'+fmtP(sum/strictPriced.length);
+  el('stRange').textContent=fmtP(mn)+'\u2013'+fmtP(mx);
+ }else{el('stAvg').textContent='\u2013';el('stRange').textContent='\u2013';}
+ el('stRange').style.fontSize='13px';
+
+ var pn=el('pricedNote');
+ if(currentFuel!=='diesel'){
+  var pct=strict.length?Math.round(100*strictPriced.length/strict.length):0;
+  pn.textContent='Published prices: '+fmtInt(strictPriced.length)+' of '+fmtInt(strict.length)+' ('+pct+'%)';
+  pn.style.display='block';
+ }else pn.style.display='none';
+
+ var cb=el('cheapBox');
+ if(strictPriced.length){
+  var s0=strictPriced.slice().sort(function(a,c){return a.p-c.p;})[0];
+  cheapest=s0;
+  el('cheapName').textContent=s0.name;
+  el('cheapPrice').textContent='\u20ac'+fmtP(s0.p)+' '+m.unit.slice(1)+' \u00b7 '+COUNTRY[s0.cc].name;
+  cb.style.display='block';
+ }else{cheapest=null;cb.style.display='none';}
+
+ el('modeChip').textContent=mode==='station'?'Station view':'Regional';
+ el('hint').classList.toggle('off',mode==='station');
+
+ /* legend */
+ if(mode==='agg'){
+  el('lgGreen').textContent='\u2265 1.5% below national avg';
+  el('lgAmber').textContent='Within \u00b11.5% of national avg';
+  el('lgRed').textContent='\u2265 1.5% above national avg';
+  el('legendCap').textContent='Bubble colour compares the area average with the national average of each country. Click a bubble to zoom in.';
+ }else{
+  el('lgGreen').textContent='Cheapest \u2153 of stations in view';
+  el('lgAmber').textContent='Middle \u2153';
+  el('lgRed').textContent='Priciest \u2153 in view';
+  el('legendCap').textContent='Colours re-rank as you pan or zoom \u2014 always relative to what is on screen.';
+ }
+ var grayRow=el('lgGrayRow');
+ if(currentFuel==='diesel'){grayRow.style.display='none';}
+ else{
+  grayRow.style.display='flex';
+  el('lgGray').textContent=currentFuel==='ev'?'Tariff varies by operator / plan':'Price not published \u2014 ask on site';
+ }
+
+ /* national table */
+ el('natTitle').textContent='National average \u00b7 '+m.label;
+ var rows='';
+ Object.keys(COUNTRY).forEach(function(cc){
+  var a=AVG[currentFuel][cc];
+  rows+='<div class="kv" style="opacity:'+(COUNTRY_ON[cc]?'1':'.35')+'"><span class="k">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><b>'+(a?'\u20ac'+fmtP(a)+' '+m.unit.slice(1):'\u2013')+'</b></div>';
+ });
+ el('natTable').innerHTML=rows;
+}
+
+/* ---------------- UI wiring ---------------- */
+document.querySelectorAll('.seg button').forEach(function(btn){
+ btn.addEventListener('click',function(){
+  document.querySelectorAll('.seg button').forEach(function(x){x.setAttribute('aria-pressed','false');});
+  btn.setAttribute('aria-pressed','true');
+  currentFuel=btn.getAttribute('data-fuel');
+  map.closePopup();
+  refresh();
+ });
+});
+document.querySelectorAll('.cbtn').forEach(function(btn){
+ btn.addEventListener('click',function(){
+  var cc=btn.getAttribute('data-cc');
+  COUNTRY_ON[cc]=!COUNTRY_ON[cc];
+  btn.classList.toggle('on',COUNTRY_ON[cc]);
+  btn.setAttribute('aria-pressed',COUNTRY_ON[cc]?'true':'false');
+  map.closePopup();
+  refresh();
+ });
+});
+el('cheapGo').addEventListener('click',function(){
+ if(!cheapest)return;
+ var ll=[cheapest.lat,cheapest.lng];
+ var tz=Math.max(map.getZoom(),12);
+ var st=cheapest;
+ var open=function(){L.popup({maxWidth:290}).setLatLng(ll).setContent(popupHtml(st,'station')).openOn(map);};
+ if(reduceMotion){map.setView(ll,tz);open();}
+ else{map.flyTo(ll,tz,{duration:0.8});setTimeout(open,900);}
+});
+el('panelClose').addEventListener('click',function(){document.body.classList.add('panel-hidden');});
+el('panelOpen').addEventListener('click',function(){document.body.classList.remove('panel-hidden');});
+if(window.innerWidth<860)document.body.classList.add('panel-hidden');
+
+function openModal(){el('modalBg').classList.add('open');}
+function closeModal(){el('modalBg').classList.remove('open');}
+el('srcBtn').addEventListener('click',openModal);
+el('srcBtn2').addEventListener('click',openModal);
+el('modalClose').addEventListener('click',closeModal);
+el('modalBg').addEventListener('click',function(e){if(e.target===el('modalBg'))closeModal();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+/* ---------------- live data loader ---------------- */
+function refreshBadges(){
+ var names={diesel:'Diesel',hvo:'HVO100',ev:'EV'};
+ var live=Object.keys(LIVE).filter(function(k){return LIVE[k];});
+ var sample=Object.keys(LIVE).filter(function(k){return !LIVE[k];});
+ var tag=document.querySelector('.sample-tag');
+ if(live.length===0){el('snapshot').textContent='Sample snapshot \u00b7 '+SNAP;return;}
+ var liveTxt=live.map(function(k){return names[k];}).join(' + ');
+ var sampleTxt=sample.map(function(k){return names[k];}).join(' + ');
+ el('snapshot').textContent='Snapshot '+SNAP+' \u00b7 '+liveTxt+': live';
+ if(tag){
+  if(sampleTxt){tag.textContent='\u26a0 '+liveTxt+': LIVE \u00b7 '+sampleTxt+': sample';}
+  else{tag.textContent='\u2713 Live data \u00b7 refreshed weekly';tag.style.background='#e5f6ec';tag.style.borderColor='#bfe6cd';tag.style.color='#0b6b38';}
+ }
+}
+function applyPayload(pl){
+ try{
+  var f=pl.fuels||{},any=false;
+  ['diesel','hvo','ev'].forEach(function(k){
+   var fu=f[k];
+   if(fu&&fu.live&&fu.stations&&fu.stations.length){
+    stations[k]=fu.stations.map(function(a){
+     return{lat:a[0],lng:a[1],cc:a[2],brand:a[3],name:a[4],p:(a[5]==null?null:a[5]),mwy:!!a[6],road:null,kw:a[7]||null,plugs:a[8]||null,ty:a[9]||null};
+    });
+    LIVE[k]=true;any=true;
+   }
+  });
+  if(!any)return;
+  Object.keys(stations).forEach(function(fk){
+   AVG[fk]={};var sums={},cnt={};
+   stations[fk].forEach(function(s){if(s.p==null)return;sums[s.cc]=(sums[s.cc]||0)+s.p;cnt[s.cc]=(cnt[s.cc]||0)+1;});
+   Object.keys(COUNTRY).forEach(function(cc){AVG[fk][cc]=cnt[cc]?sums[cc]/cnt[cc]:null;});
+  });
+  if(pl.snapshot_label)SNAP=pl.snapshot_label;
+  refreshBadges();
+  refresh();
+ }catch(e){/* keep sample data */}
+}
+
+map.on('moveend',debounce(refresh,120));
+refresh();
+fetch('data/prices-latest.json',{cache:'no-store'})
+ .then(function(r){if(!r.ok)throw new Error('no data file');return r.json();})
+ .then(applyPayload)
+ .catch(function(){/* sample mode */});
+})();
+/*APP-JS-END*/
+</script>
+</body>
+</html>
