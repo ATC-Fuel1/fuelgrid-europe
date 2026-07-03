@@ -34,14 +34,24 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data", "prices-latest.json")
-UA = {"User-Agent": "FuelGridEurope/0.2 (weekly open-data snapshot; contact via repo)"}
+UA = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.3"),
+    "Accept": "*/*",
+}
 
 ES_URL = ("https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/"
           "PreciosCarburantes/EstacionesTerrestres/")
 FR_URL = "https://donnees.roulez-eco.fr/opendata/instantane"
 DE_URL = "https://creativecommons.tankerkoenig.de/json/list.php"
-IT_ANAG = "https://www.mimit.gov.it/images/exportCSV/anagrafica_impianti_attivi.csv"
-IT_PREZZI = "https://www.mimit.gov.it/images/exportCSV/prezzo_alle_8.csv"
+# Italy moved domains before (mise -> mimit); we try both hosts.
+IT_BASES = [
+    "https://www.mimit.gov.it/images/exportCSV/",
+    "https://www.mise.gov.it/images/exportCSV/",
+]
+IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
+IT_PREZZI_FILE = "prezzo_alle_8.csv"
 
 # Spain's feed may expose renewable diesel under different column names
 # depending on rollout stage - we try each. If none exist, HVO simply
@@ -174,20 +184,41 @@ def fetch_de():
 
 # ----------------------------------------------------------------- Italy
 def _it_rows(url):
-    text = http_get(url).decode("utf-8", errors="replace").splitlines()
-    if text and ";" not in text[0]:
-        text = text[1:]  # first line is an extraction-date banner
-    return list(csv.DictReader(text, delimiter=";"))
+    """Parse a MIMIT CSV. Tolerates the date-banner line (present or not),
+    a UTF-8 BOM, and stray whitespace in header names."""
+    text = http_get(url).decode("utf-8-sig", errors="replace").splitlines()
+    start = 0
+    for i, line in enumerate(text[:5]):
+        if "idImpianto" in line:
+            start = i
+            break
+    rdr = csv.reader(text[start:], delimiter=";")
+    header = [h.strip().lstrip("\ufeff") for h in next(rdr, [])]
+    return [dict(zip(header, row)) for row in rdr if row]
 
 
 def fetch_it():
-    anag = {}
-    for r in _it_rows(IT_ANAG):
-        i = (r.get("idImpianto") or "").strip()
-        if i:
-            anag[i] = r
+    anag, prezzi_rows, last_err = {}, [], None
+    for base in IT_BASES:
+        try:
+            a_rows = _it_rows(base + IT_ANAG_FILE)
+            if not a_rows or "idImpianto" not in a_rows[0]:
+                raise ValueError("anagrafica: unexpected format")
+            prezzi_rows = _it_rows(base + IT_PREZZI_FILE)
+            for r in a_rows:
+                i = (r.get("idImpianto") or "").strip()
+                if i:
+                    anag[i] = r
+            print(f"IT: source {base} ok "
+                  f"({len(anag)} stations, {len(prezzi_rows)} price rows)")
+            break
+        except Exception as exc:
+            last_err = exc
+            print(f"IT: source {base} failed - {exc}")
+    if not anag:
+        raise RuntimeError(f"all Italian sources failed - last: {last_err}")
     best, hvo_best = {}, {}
-    for r in _it_rows(IT_PREZZI):
+    for r in prezzi_rows:
         i = (r.get("idImpianto") or "").strip()
         p = to_f(r.get("prezzo"))
         if not i or not p:
@@ -250,6 +281,14 @@ def main():
                 print(f"{label}: {len(res)} diesel")
         except Exception as exc:
             print(f"{label}: FAILED - {exc}", file=sys.stderr)
+
+    by_cc = {}
+    for r in diesel:
+        by_cc[r[2]] = by_cc.get(r[2], 0) + 1
+    print("Diesel stations by country:", by_cc or "none")
+    for cc in ("ES", "FR", "DE", "IT"):
+        if by_cc.get(cc, 0) == 0:
+            print(f"WARNING: no diesel data for {cc} this run")
 
     if not diesel:
         sys.exit("No diesel data fetched from any source - keeping previous file.")
