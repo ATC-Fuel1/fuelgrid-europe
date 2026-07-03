@@ -22,6 +22,7 @@ Exit code is non-zero only if NO diesel data was fetched at all.
 
 import csv
 import datetime as dt
+import gzip
 import io
 import json
 import math
@@ -37,8 +38,10 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.3"),
-    "Accept": "*/*",
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.4"),
+    "Accept": "text/csv,application/json,*/*;q=0.8",
+    "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
+    "Accept-Encoding": "identity",
 }
 
 ES_URL = ("https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/"
@@ -68,7 +71,10 @@ ES_HVO_KEYS = [
 def http_get(url, timeout=180):
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+        data = r.read()
+    if data[:2] == b"\x1f\x8b":  # gzip magic - some CDNs compress uninvited
+        data = gzip.decompress(data)
+    return data
 
 
 def to_f(x):
@@ -183,10 +189,10 @@ def fetch_de():
 
 
 # ----------------------------------------------------------------- Italy
-def _it_rows(url):
-    """Parse a MIMIT CSV. Tolerates the date-banner line (present or not),
-    a UTF-8 BOM, and stray whitespace in header names."""
-    text = http_get(url).decode("utf-8-sig", errors="replace").splitlines()
+def _parse_it_csv(raw):
+    """Parse a MIMIT CSV from raw bytes. Tolerates the date-banner line
+    (present or not), a UTF-8 BOM, and stray whitespace in header names."""
+    text = raw.decode("utf-8-sig", errors="replace").splitlines()
     start = 0
     for i, line in enumerate(text[:5]):
         if "idImpianto" in line:
@@ -201,10 +207,12 @@ def fetch_it():
     anag, prezzi_rows, last_err = {}, [], None
     for base in IT_BASES:
         try:
-            a_rows = _it_rows(base + IT_ANAG_FILE)
+            raw = http_get(base + IT_ANAG_FILE)
+            a_rows = _parse_it_csv(raw)
             if not a_rows or "idImpianto" not in a_rows[0]:
-                raise ValueError("anagrafica: unexpected format")
-            prezzi_rows = _it_rows(base + IT_PREZZI_FILE)
+                peek = " ".join(raw[:400].decode("utf-8", "replace").split())[:220]
+                raise ValueError(f"unexpected format; server sent: {peek!r}")
+            prezzi_rows = _parse_it_csv(http_get(base + IT_PREZZI_FILE))
             for r in a_rows:
                 i = (r.get("idImpianto") or "").strip()
                 if i:
@@ -259,6 +267,29 @@ def fetch_it():
     return diesel, hvo
 
 
+def load_previous():
+    try:
+        with open(OUT, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def carry_forward(prev, fuel_key, rows):
+    """Top up this run's rows with last run's stations for any country
+    that returned nothing today - a bad feed day should never blank a
+    country on the map."""
+    have = {r[2] for r in rows}
+    old = (prev.get("fuels", {}).get(fuel_key, {}) or {}).get("stations") or []
+    kept = [r for r in old if r[2] not in have]
+    if kept:
+        by = {}
+        for r in kept:
+            by[r[2]] = by.get(r[2], 0) + 1
+        print(f"{fuel_key}: carrying forward previous data for {by}")
+    return rows + kept
+
+
 # ------------------------------------------------------------------ main
 def main():
     diesel, hvo = [], []
@@ -288,7 +319,11 @@ def main():
     print("Diesel stations by country:", by_cc or "none")
     for cc in ("ES", "FR", "DE", "IT"):
         if by_cc.get(cc, 0) == 0:
-            print(f"WARNING: no diesel data for {cc} this run")
+            print(f"WARNING: no fresh diesel data for {cc} this run")
+
+    prev = load_previous()
+    diesel = carry_forward(prev, "diesel", diesel)
+    hvo = carry_forward(prev, "hvo", hvo)
 
     if not diesel:
         sys.exit("No diesel data fetched from any source - keeping previous file.")
