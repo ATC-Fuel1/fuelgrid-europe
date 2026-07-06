@@ -27,6 +27,7 @@ import io
 import json
 import math
 import os
+import re
 import sys
 import time
 import urllib.request
@@ -57,6 +58,7 @@ IT_BASES = [
 ]
 IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
 IT_PREZZI_FILE = "prezzo_alle_8.csv"
+OCM_URL = "https://api.openchargemap.io/v3/poi"
 
 # Spain's feed may expose renewable diesel under different column names
 # depending on rollout stage - we try each. If none exist, HVO simply
@@ -300,6 +302,57 @@ def fetch_it():
     return diesel, hvo
 
 
+def _parse_ev_cost(s):
+    """Extract a per-kWh euro price from OCM's free-text UsageCost, if any."""
+    if not s:
+        return None
+    m = re.search(r"(\d+[.,]\d+)\s*(?:\u20ac|eur)?\s*/?\s*kwh", str(s).lower())
+    if not m:
+        return None
+    v = to_f(m.group(1))
+    return round(v, 2) if v is not None and 0.05 < v < 2.0 else None
+
+
+def fetch_ev():
+    key = os.environ.get("OCM_API_KEY", "").strip()
+    if not key:
+        print("EV: OCM_API_KEY secret not set - keeping sample EV data "
+              "(free key at openchargemap.org)")
+        return []
+    out = []
+    for cc in ("ES", "FR", "DE", "IT"):
+        try:
+            url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=8000"
+                   f"&compact=true&verbose=false&key={key}")
+            pois = json.loads(http_get(url, 120).decode("utf-8"))
+            n0 = len(out)
+            for p in pois:
+                ai = p.get("AddressInfo") or {}
+                lat, lng = ai.get("Latitude"), ai.get("Longitude")
+                if lat is None or lng is None:
+                    continue
+                conns = p.get("Connections") or []
+                kw = 0.0
+                for c in conns:
+                    try:
+                        kw = max(kw, float(c.get("PowerKW") or 0))
+                    except (TypeError, ValueError):
+                        pass
+                op = ((p.get("OperatorInfo") or {}).get("Title")
+                      or "Operator n/a").strip()[:30]
+                town = (ai.get("Town") or "").strip().title()
+                name = f"{op} \u00b7 {town}" if town else op
+                ty = "HPC" if kw >= 100 else ("DC" if kw >= 43 else "AC")
+                out.append([round(float(lat), 5), round(float(lng), 5), cc,
+                            op, name[:60], _parse_ev_cost(p.get("UsageCost")),
+                            0, int(kw) or None, max(len(conns), 1), ty])
+            print(f"EV {cc}: {len(out) - n0} chargers")
+        except Exception as exc:
+            print(f"EV {cc}: failed - {exc}")
+    print(f"EV: {len(out)} chargers total")
+    return out
+
+
 def load_previous():
     try:
         with open(OUT, encoding="utf-8") as f:
@@ -354,9 +407,16 @@ def main():
         if by_cc.get(cc, 0) == 0:
             print(f"WARNING: no fresh diesel data for {cc} this run")
 
+    ev = []
+    try:
+        ev = fetch_ev()
+    except Exception as exc:
+        print(f"EV: FAILED - {exc}", file=sys.stderr)
+
     prev = load_previous()
     diesel = carry_forward(prev, "diesel", diesel)
     hvo = carry_forward(prev, "hvo", hvo)
+    ev = carry_forward(prev, "ev", ev)
 
     if not diesel:
         sys.exit("No diesel data fetched from any source - keeping previous file.")
@@ -366,7 +426,7 @@ def main():
         # only flip HVO to live if we actually got a meaningful set
         "hvo": ({"live": True, "stations": hvo} if len(hvo) >= 25
                 else {"live": False}),
-        "ev": {"live": False},  # phase 3
+        "ev": ({"live": True, "stations": ev} if len(ev) >= 50 else {"live": False}),
     }
     now = dt.datetime.now(dt.timezone.utc)
     payload = {
@@ -379,7 +439,7 @@ def main():
         json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
     size_mb = os.path.getsize(OUT) / 1e6
     print(f"Wrote {OUT}  ({size_mb:.1f} MB) - "
-          f"{len(diesel)} diesel / {len(hvo)} HVO stations")
+          f"{len(diesel)} diesel / {len(hvo)} HVO / {len(ev)} EV stations")
 
 
 if __name__ == "__main__":
