@@ -72,11 +72,13 @@
 
   /* Aggregate "price totems" */
   .aggWrap{background:none;border:none}
+  .bestTag{position:absolute;transform:translate(-50%,-200%);background:#0b7a43;color:#fff;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;padding:2.5px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 7px rgba(16,24,40,.35);border:1.5px solid rgba(255,255,255,.92);cursor:pointer}
+  .bestTag:after{content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);border:4px solid transparent;border-top-color:#0b7a43}
   .agg{
     display:flex;align-items:center;justify-content:center;border-radius:50%;
     color:#fff;font-weight:800;font-variant-numeric:tabular-nums;
-    border:2.5px solid rgba(255,255,255,.92);
-    box-shadow:0 3px 10px rgba(16,24,40,.35);
+    border:2px solid rgba(255,255,255,.95);
+    box-shadow:0 2px 6px rgba(16,24,40,.28);
     cursor:pointer;transition:transform .12s;
   }
   .agg:hover{transform:scale(1.07)}
@@ -203,6 +205,7 @@
   </nav>
   <div class="head-right">
     <span class="snapshot" id="snapshot">Sample snapshot · Mon 29 Jun 2026</span>
+    <button class="btn-ghost" id="resetBtn">Reset filters</button>
     <button class="btn-ghost" id="srcBtn">Sources</button>
   </div>
 </header>
@@ -283,6 +286,7 @@ function pickW(items){var tot=0,i;for(i=0;i<items.length;i++)tot+=items[i].w;var
 function clamp(x,a,b){return Math.min(b,Math.max(a,x));}
 function debounce(fn,ms){var t;return function(){clearTimeout(t);t=setTimeout(fn,ms);};}
 function fmtInt(n){return n.toLocaleString('en-GB');}
+function esc(t){return String(t).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function el(id){return document.getElementById(id);}
 
 /* ---------------- static configuration ---------------- */
@@ -490,15 +494,16 @@ var provIdx=0,tileLayer=null,fallbackOn=false;
 function enableVectorFallback(){
  if(fallbackOn)return;fallbackOn=true;
  if(tileLayer){map.removeLayer(tileLayer);tileLayer=null;}
- el('map').style.background='#cfe0eb';
+ el('map').style.background='#dbe6ee';
  map.createPane('fallbackPane');
  map.getPane('fallbackPane').style.zIndex=250;
+ var fbR=L.svg({pane:'fallbackPane'});
  LAND.forEach(function(ring){
-  L.polygon(ring,{pane:'fallbackPane',color:'#aeb9c6',weight:1,fillColor:'#f1eee6',fillOpacity:1,interactive:false}).addTo(map);
+  L.polygon(ring,{renderer:fbR,pane:'fallbackPane',color:'#ccd5df',weight:1,fillColor:'#eef1f4',fillOpacity:1,interactive:false}).addTo(map);
  });
  map.attributionControl.addAttribution('Simplified offline basemap');
  var w=el('tileWarn');
- w.textContent='Street tiles are blocked in this preview \u2014 showing a simplified basemap. Open the file in your browser (or host it) for the full street map.';
+ w.textContent='Preview basemap \u2014 the live site shows the full street map.';
  w.style.display='block';
 }
 function mountTiles(){
@@ -532,7 +537,7 @@ setTimeout(fitMap,50);setTimeout(fitMap,400);
 
 var stationLayer=L.layerGroup().addTo(map);
 var aggLayer=L.layerGroup().addTo(map);
-var STATION_ZOOM=8;
+var STATION_ZOOM=10;
 var currentFuel='diesel';
 var META={
  diesel:{label:'Diesel B7',unit:'\u20ac/L',dec:3},
@@ -558,7 +563,7 @@ function statusLabel(k,mode){
 function popupHtml(s,mode){
  var C=COUNTRY[s.cc],m=META[currentFuel];
  var loc=s.mwy?('Motorway '+(s.road||'')):'Urban / local';
- var html='<div class="fm-pop"><div class="nm">'+s.name+'</div>';
+ var html='<div class="fm-pop"><div class="nm">'+esc(s.name)+'</div>';
  if(s.p==null){
   html+='<div class="price" style="font-size:15px;color:#5d6779">'+(currentFuel==='ev'?'Tariff varies by operator / plan':'Price available on site')+'<span class="pill s-gray">n/a</span></div>';
  }else{
@@ -577,18 +582,25 @@ function popupHtml(s,mode){
 
 /* ---------------- refresh (core) ---------------- */
 function refresh(){
+ try{refreshCore();}
+ catch(err){if(window.console&&console.warn)console.warn('FuelGrid refresh error:',err);}
+}
+function refreshCore(){
  var z=map.getZoom();
  var mode=z>=STATION_ZOOM?'station':'agg';
- var b=map.getBounds(), bp=b.pad(0.25);
+ var b=map.getBounds(), bp=b.pad(0.2);
+ var pS=bp.getSouth(),pN=bp.getNorth(),pW=bp.getWest(),pE=bp.getEast();
+ var sS=b.getSouth(),sN=b.getNorth(),sW=b.getWest(),sE=b.getEast();
  var data=stations[currentFuel];
  var pad=[],strict=[],strictPriced=[];
  for(var i=0;i<data.length;i++){
   var s=data[i];
   if(!COUNTRY_ON[s.cc])continue;
-  if(!bp.contains([s.lat,s.lng]))continue;
+  if(s.lat<pS||s.lat>pN||s.lng<pW||s.lng>pE)continue;
   pad.push(s);
-  if(b.contains([s.lat,s.lng])){strict.push(s);if(s.p!=null)strictPriced.push(s);}
+  if(s.lat>=sS&&s.lat<=sN&&s.lng>=sW&&s.lng<=sE){strict.push(s);if(s.p!=null)strictPriced.push(s);}
  }
+ if(mode==='station'&&pad.length>3500)mode='agg';
  stationLayer.clearLayers();aggLayer.clearLayers();
  colorFor=null;
 
@@ -601,16 +613,26 @@ function refresh(){
   }else{
    colorFor=function(st){var k=deltaStatus(relDelta(st));return{k:k,c:COLORS[k]};};
   }
+  var dr=z>=13.5?6:(z>=11.5?5:4.2);
   pad.forEach(function(st){
    var col=st.p==null?COLORS.gray:colorFor(st).c;
-   var mk=L.circleMarker([st.lat,st.lng],{radius:6,color:'#ffffff',weight:1.5,fillColor:col,fillOpacity:0.92});
+   var mk=L.circleMarker([st.lat,st.lng],{radius:dr,color:'rgba(255,255,255,.95)',weight:1.25,fillColor:col,fillOpacity:0.88});
    mk.on('click',function(){
     L.popup({maxWidth:290}).setLatLng([st.lat,st.lng]).setContent(popupHtml(st,'station')).openOn(map);
    });
    stationLayer.addLayer(mk);
   });
+  if(strictPriced.length>=8){
+   strictPriced.slice().sort(function(a,c){return a.p-c.p;}).slice(0,3).forEach(function(st,ix){
+    var tag=L.marker([st.lat,st.lng],{zIndexOffset:1000,icon:L.divIcon({className:'aggWrap',iconSize:[0,0],iconAnchor:[0,0],html:'<div class="bestTag">'+(ix===0?'\u2605 ':'')+'\u20ac'+fmtP(st.p)+'</div>'})});
+    tag.on('click',function(){
+     L.popup({maxWidth:290}).setLatLng([st.lat,st.lng]).setContent(popupHtml(st,'station')).openOn(map);
+    });
+    stationLayer.addLayer(tag);
+   });
+  }
  }else{
-  var cd=clamp((72/(256*Math.pow(2,z)))*360,0.08,8);
+  var cd=clamp((94/(256*Math.pow(2,z)))*360,0.08,8);
   var cells={};
   pad.forEach(function(st){
    var key=Math.floor(st.lat/cd)+'_'+Math.floor(st.lng/cd);
@@ -624,7 +646,7 @@ function refresh(){
    var k,d=0,avgP=null,label;
    if(c.np>0){avgP=c.sp/c.np;d=c.sd/c.np;k=deltaStatus(d);label=avgP.toFixed(2);}
    else{k='gray';label=String(c.n);}
-   var dm=clamp(26+Math.sqrt(c.n)*2.6,26,58);
+   var dm=clamp(24+Math.sqrt(c.n)*2.2,24,50);
    var fs=dm>=44?13.5:(dm>=32?12:11);
    var icon=L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],
      html:'<div class="agg s-'+k+'" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+label+'</div>'});
@@ -722,6 +744,16 @@ document.querySelectorAll('.cbtn').forEach(function(btn){
   map.closePopup();
   refresh();
  });
+});
+el('resetBtn').addEventListener('click',function(){
+ Object.keys(COUNTRY_ON).forEach(function(cc){COUNTRY_ON[cc]=true;});
+ document.querySelectorAll('.cbtn').forEach(function(b){b.setAttribute('aria-pressed','true');b.classList.add('on');});
+ currentFuel='diesel';
+ document.querySelectorAll('.seg button[data-fuel]').forEach(function(b){
+  b.setAttribute('aria-pressed',b.getAttribute('data-fuel')==='diesel'?'true':'false');
+ });
+ map.closePopup();
+ refresh();
 });
 el('cheapGo').addEventListener('click',function(){
  if(!cheapest)return;
