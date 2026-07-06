@@ -38,7 +38,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.4"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.5"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -46,6 +46,8 @@ UA = {
 
 ES_URL = ("https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/"
           "PreciosCarburantes/EstacionesTerrestres/")
+# Lighter diesel-only endpoint, used if the full feed keeps dropping (4 = Gasoleo A)
+ES_URL_DIESEL = ES_URL.rstrip("/") + "/FiltroProducto/4"
 FR_URL = "https://donnees.roulez-eco.fr/opendata/instantane"
 DE_URL = "https://creativecommons.tankerkoenig.de/json/list.php"
 # Italy moved domains before (mise -> mimit); we try both hosts.
@@ -68,27 +70,43 @@ ES_HVO_KEYS = [
 ]
 
 
-def http_get(url, timeout=180):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        data = r.read()
-    if data[:2] == b"\x1f\x8b":  # gzip magic - some CDNs compress uninvited
-        data = gzip.decompress(data)
-    return data
+def http_get(url, timeout=180, tries=3):
+    last = None
+    for attempt in range(tries):
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = r.read()
+            if data[:2] == b"\x1f\x8b":  # gzip magic - some CDNs compress uninvited
+                data = gzip.decompress(data)
+            return data
+        except Exception as exc:
+            last = exc
+            if attempt < tries - 1:
+                wait = 4 * (attempt + 1)
+                print(f"  retry {attempt + 1}/{tries - 1} for "
+                      f"{url.split('?')[0]} in {wait}s ({exc})")
+                time.sleep(wait)
+    raise last
 
 
 def to_f(x):
-    """Parse '1,439' / '1.439' -> float, else None. Rejects <=0."""
+    """Parse '1,439' / '1.439' / '-3,70' -> float, else None."""
     if x is None:
         return None
     s = str(x).strip().replace(",", ".")
     if not s:
         return None
     try:
-        v = float(s)
+        return float(s)
     except ValueError:
         return None
-    return v if v > 0 else None
+
+
+def to_price(x, lo=0.2, hi=5.0):
+    """Price parser: like to_f but only accepts sane per-litre/kWh values."""
+    v = to_f(x)
+    return v if v is not None and lo < v < hi else None
 
 
 def row(lat, lng, cc, brand, name, price, mwy):
@@ -98,21 +116,31 @@ def row(lat, lng, cc, brand, name, price, mwy):
 
 # ----------------------------------------------------------------- Spain
 def fetch_es():
-    data = json.loads(http_get(ES_URL).decode("utf-8"))
+    filtered = False
+    try:
+        data = json.loads(http_get(ES_URL).decode("utf-8"))
+    except Exception as exc:
+        print(f"ES: full feed failed ({exc}); trying diesel-only endpoint")
+        data = json.loads(http_get(ES_URL_DIESEL).decode("utf-8"))
+        filtered = True
     diesel, hvo = [], []
     for e in data.get("ListaEESSPrecio", []):
         lat = to_f(e.get("Latitud"))
         lng = to_f(e.get("Longitud (WGS84)"))
         if lat is None or lng is None:
             continue
+        if not (27.0 < lat < 44.5 and -19.0 < lng < 5.0):
+            continue
         brand = (e.get("R\u00f3tulo") or "Estaci\u00f3n").strip().title() or "Estaci\u00f3n"
         town = (e.get("Municipio") or "").strip().title()
         name = f"{brand} \u00b7 {town}" if town else brand
-        p = to_f(e.get("Precio Gasoleo A"))
+        p = to_price(e.get("Precio Gasoleo A") or e.get("PrecioProducto"))
         if p:
             diesel.append(row(lat, lng, "ES", brand, name, p, 0))
+        if filtered:
+            continue  # diesel-only endpoint has no HVO columns
         for k in ES_HVO_KEYS:
-            hp = to_f(e.get(k))
+            hp = to_price(e.get(k))
             if hp:
                 hvo.append(row(lat, lng, "ES", brand, name + " (HVO100)", hp, 0))
                 break
@@ -139,7 +167,7 @@ def fetch_fr():
         p = None
         for prix in pdv.iter("prix"):
             if prix.get("nom") == "Gazole":
-                p = to_f(prix.get("valeur"))
+                p = to_price(prix.get("valeur"))
                 break
         if p:
             name = f"Station \u00b7 {ville}" if ville else "Station"
@@ -164,10 +192,10 @@ def fetch_de():
             url = (f"{DE_URL}?lat={lat:.3f}&lng={lng:.3f}&rad=25"
                    f"&sort=dist&type=diesel&apikey={key}")
             try:
-                js = json.loads(http_get(url, 60).decode("utf-8"))
+                js = json.loads(http_get(url, 60, tries=2).decode("utf-8"))
                 for s in js.get("stations", []):
                     sid = s.get("id")
-                    p = to_f(s.get("diesel"))
+                    p = to_price(s.get("diesel"))
                     slat, slng = s.get("lat"), s.get("lng")
                     if not sid or sid in seen or not p or slat is None:
                         continue
@@ -198,7 +226,12 @@ def _parse_it_csv(raw):
         if "idImpianto" in line:
             start = i
             break
-    rdr = csv.reader(text[start:], delimiter=";")
+    if not text:
+        return []
+    head = text[start]
+    # MIMIT has shipped both ';' and '|' as separators - detect per file
+    delim = "|" if head.count("|") >= head.count(";") else ";"
+    rdr = csv.reader(text[start:], delimiter=delim)
     header = [h.strip().lstrip("\ufeff") for h in next(rdr, [])]
     return [dict(zip(header, row)) for row in rdr if row]
 
@@ -228,7 +261,7 @@ def fetch_it():
     best, hvo_best = {}, {}
     for r in prezzi_rows:
         i = (r.get("idImpianto") or "").strip()
-        p = to_f(r.get("prezzo"))
+        p = to_price(r.get("prezzo"))
         if not i or not p:
             continue
         desc = (r.get("descCarburante") or "").strip().lower()
