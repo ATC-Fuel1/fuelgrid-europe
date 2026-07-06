@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.5"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.7"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -59,6 +59,24 @@ IT_BASES = [
 IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
 IT_PREZZI_FILE = "prezzo_alle_8.csv"
 OCM_URL = "https://api.openchargemap.io/v3/poi"
+ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+AT_URL = "https://api.e-control.at/sprit/1.0/search/gas-stations/by-address"
+MANUAL_DIR = os.path.join(HERE, "data", "manual")
+UK_FEEDS = [
+    ("Applegreen", "https://applegreenstores.com/fuel-prices/data.json"),
+    ("Ascona", "https://fuelprices.asconagroup.co.uk/newfuel.json"),
+    ("Asda", "https://storelocator.asda.com/fuel_prices_data.json"),
+    ("BP", "https://www.bp.com/en_gb/united-kingdom/home/fuelprices/fuel_prices_data.json"),
+    ("Esso", "https://fuelprices.esso.co.uk/latestdata.json"),
+    ("Jet", "https://jetlocal.co.uk/fuel_prices_data.json"),
+    ("Morrisons", "https://www.morrisons.com/fuel-prices/fuel.json"),
+    ("Moto", "https://moto-way.com/fuel-price/fuel_prices.json"),
+    ("MFG", "https://fuel.motorfuelgroup.com/fuel_prices_data.json"),
+    ("Rontec", "https://www.rontec-servicestations.co.uk/fuel-prices/data/fuel_prices_data.json"),
+    ("Sainsburys", "https://api.sainsburys.co.uk/v1/exports/latest/fuel_prices_data.json"),
+    ("Shell", "https://www.shell.co.uk/fuel-prices-data.html"),
+    ("Tesco", "https://www.tesco.com/fuel_prices/fuel_prices_data.json"),
+]
 
 # Spain's feed may expose renewable diesel under different column names
 # depending on rollout stage - we try each. If none exist, HVO simply
@@ -353,6 +371,146 @@ def fetch_ev():
     return out
 
 
+def gbp_to_eur_rate():
+    root = ET.fromstring(http_get(ECB_FX_URL, 60))
+    for cube in root.iter():
+        if cube.attrib.get("currency") == "GBP":
+            return float(cube.attrib["rate"])
+    raise RuntimeError("GBP not found in ECB feed")
+
+
+def fetch_gb():
+    try:
+        rate = gbp_to_eur_rate()
+        print(f"GB: ECB rate {rate:.4f} GBP/EUR")
+    except Exception as exc:
+        print(f"GB: ECB FX unavailable ({exc}) - skipping UK this run")
+        return []
+    out, seen, ok_feeds = [], set(), 0
+    for tag, url in UK_FEEDS:
+        try:
+            js = json.loads(http_get(url, 90).decode("utf-8", errors="replace"))
+            for s in js.get("stations") or []:
+                loc = s.get("location") or {}
+                try:
+                    lat, lng = float(loc.get("latitude")), float(loc.get("longitude"))
+                except (TypeError, ValueError):
+                    continue
+                if not (49.8 < lat < 61.5 and -8.7 < lng < 2.2):
+                    continue
+                sid = str(s.get("site_id") or f"{lat:.4f},{lng:.4f}")
+                if sid in seen:
+                    continue
+                p = (s.get("prices") or {}).get("B7")
+                try:
+                    p = float(str(p).replace(",", "."))
+                except (TypeError, ValueError):
+                    continue
+                if p > 10:
+                    p = p / 100.0
+                eur = round(p / rate, 3)
+                if not (0.8 < eur < 3.5):
+                    continue
+                seen.add(sid)
+                brand = (s.get("brand") or tag).strip().title()[:30]
+                pc = (s.get("postcode") or "").strip()
+                name = f"{brand} \u00b7 {pc}" if pc else brand
+                mwy = 1 if brand.upper() in ("MOTO", "WELCOME BREAK", "ROADCHEF") else 0
+                out.append([round(lat, 5), round(lng, 5), "GB", brand, name[:60], eur, mwy])
+            ok_feeds += 1
+        except Exception as exc:
+            print(f"GB feed {tag}: failed - {exc}")
+    print(f"GB: {len(out)} stations from {ok_feeds}/{len(UK_FEEDS)} feeds")
+    return out
+
+
+def fetch_at():
+    stations, calls = {}, 0
+    lat = 46.30
+    while lat <= 49.10:
+        lng = 9.40
+        while lng <= 17.20:
+            url = (f"{AT_URL}?latitude={lat:.3f}&longitude={lng:.3f}"
+                   f"&fuelType=DIE&includeClosed=false")
+            try:
+                for s in json.loads(http_get(url, 60, tries=2).decode("utf-8")):
+                    sid = s.get("id")
+                    loc = s.get("location") or {}
+                    la, lo = loc.get("latitude"), loc.get("longitude")
+                    if sid is None or la is None or lo is None:
+                        continue
+                    p = None
+                    for pr in (s.get("prices") or []):
+                        if pr.get("fuelType") == "DIE":
+                            p = to_price(pr.get("amount"))
+                    prev = stations.get(sid)
+                    if prev is not None and not (prev[5] is None and p is not None):
+                        continue
+                    nm = (s.get("name") or "Tankstelle").strip().title()[:30]
+                    city = (loc.get("city") or "").strip().title()
+                    stations[sid] = [round(float(la), 5), round(float(lo), 5), "AT", nm,
+                                     (f"{nm} \u00b7 {city}" if city else nm)[:60],
+                                     round(p, 3) if p else None, 0]
+            except Exception as exc:
+                print(f"AT cell ({lat:.2f},{lng:.2f}) failed - {exc}")
+            calls += 1
+            time.sleep(0.25)
+            lng += 0.5
+        lat += 0.25
+    out = list(stations.values())
+    priced = sum(1 for r in out if r[5] is not None)
+    print(f"AT: {calls} cells, {len(out)} stations ({priced} priced)")
+    return out
+
+
+def load_dkv():
+    path = os.path.join(MANUAL_DIR, "dkv_stations.csv")
+    res = {"diesel": [], "hvo": [], "ev": []}
+    if not os.path.exists(path):
+        return res
+    with open(path, encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            cc = (r.get("country") or "").strip().upper()
+            fuel = (r.get("fuel") or "diesel").strip().lower()
+            lat, lng = to_f(r.get("lat")), to_f(r.get("lng"))
+            if not cc or lat is None or lng is None or fuel not in res:
+                continue
+            name = (r.get("name") or "DKV station").strip()[:60]
+            brand = (r.get("brand") or "DKV").strip()[:30]
+            p = to_price(r.get("price"))
+            if fuel == "ev":
+                kw = to_f(r.get("kw"))
+                res["ev"].append([round(lat, 5), round(lng, 5), cc, brand, name,
+                                  round(p, 2) if p else None, 0,
+                                  int(kw) if kw else None,
+                                  int(to_f(r.get("bays")) or 1),
+                                  "DC" if (kw or 0) >= 43 else "AC"])
+            else:
+                res[fuel].append([round(lat, 5), round(lng, 5), cc, brand,
+                                  name, round(p, 3) if p else None, 0])
+    for k, v in res.items():
+        if v:
+            print(f"DKV import: {len(v)} {k} points")
+    return res
+
+
+def load_manual_averages():
+    path = os.path.join(MANUAL_DIR, "national_averages.csv")
+    out = {}
+    if not os.path.exists(path):
+        return out
+    with open(path, encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            cc = (r.get("country") or "").strip().upper()
+            fuel = (r.get("fuel") or "").strip().lower()
+            v = to_price(r.get("eur"))
+            if cc and fuel and v:
+                out.setdefault(fuel, {})[cc] = v
+    if out:
+        print(f"Manual averages: {sum(len(x) for x in out.values())} entries")
+    return out
+
+
 def load_previous():
     try:
         with open(OUT, encoding="utf-8") as f:
@@ -384,6 +542,8 @@ def main():
         ("FR", fetch_fr, False),
         ("DE", fetch_de, False),
         ("IT", fetch_it, True),
+        ("GB", fetch_gb, False),
+        ("AT", fetch_at, False),
     ]
     for label, fn, returns_pair in jobs:
         try:
@@ -403,7 +563,7 @@ def main():
     for r in diesel:
         by_cc[r[2]] = by_cc.get(r[2], 0) + 1
     print("Diesel stations by country:", by_cc or "none")
-    for cc in ("ES", "FR", "DE", "IT"):
+    for cc in ("ES", "FR", "DE", "IT", "GB", "AT"):
         if by_cc.get(cc, 0) == 0:
             print(f"WARNING: no fresh diesel data for {cc} this run")
 
@@ -412,6 +572,11 @@ def main():
         ev = fetch_ev()
     except Exception as exc:
         print(f"EV: FAILED - {exc}", file=sys.stderr)
+
+    dkv = load_dkv()
+    diesel += dkv["diesel"]
+    hvo += dkv["hvo"]
+    ev += dkv["ev"]
 
     prev = load_previous()
     diesel = carry_forward(prev, "diesel", diesel)
@@ -433,6 +598,7 @@ def main():
         "generated": now.isoformat(timespec="seconds"),
         "snapshot_label": now.strftime("%a %-d %b %Y"),
         "fuels": fuels,
+        "manual_avg": load_manual_averages(),
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:

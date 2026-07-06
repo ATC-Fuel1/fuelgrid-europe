@@ -48,7 +48,8 @@
 
   .seg{display:flex;background:var(--sign);border-radius:12px;padding:4px;gap:4px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
   .fseg{margin-left:auto}
-  .cseg button{padding:7px 10px}
+  .cseg{flex-wrap:wrap;max-width:600px}
+  .cseg button{padding:6px 8px;font-size:11px}
   .cbtn[aria-pressed="true"]::before{content:'\2713';margin-right:5px;font-weight:900}
   .cbtn[aria-pressed="false"]{opacity:.38}
   .cbtn[aria-pressed="false"]:hover{opacity:.75}
@@ -199,19 +200,14 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v1.2</span>
+    <span class="ver">v2.0</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
     <button data-fuel="hvo" aria-pressed="false">HVO100</button>
     <button data-fuel="ev" aria-pressed="false">EV charging</button>
   </nav>
-  <nav class="seg cseg" role="group" aria-label="Countries">
-    <button class="cbtn" data-cc="ES" aria-pressed="true">🇪🇸 ES<b class="cnt" id="cntES">–</b></button>
-    <button class="cbtn" data-cc="FR" aria-pressed="true">🇫🇷 FR<b class="cnt" id="cntFR">–</b></button>
-    <button class="cbtn" data-cc="DE" aria-pressed="true">🇩🇪 DE<b class="cnt" id="cntDE">–</b></button>
-    <button class="cbtn" data-cc="IT" aria-pressed="true">🇮🇹 IT<b class="cnt" id="cntIT">–</b></button>
-  </nav>
+  <nav class="seg cseg" id="cseg" role="group" aria-label="Countries"></nav>
   <button class="btn-ghost" id="resetBtn">Reset</button>
   <div class="head-right">
     <span class="snapshot" id="snapshot">Sample snapshot · Mon 29 Jun 2026</span>
@@ -274,6 +270,10 @@
       <li>🇮🇹 <b>Italy</b> — Osservaprezzi Carburanti, MIMIT open data <span class="tag ok">Full · daily</span></li>
       <li>🌿 <b>HVO100</b> — operator directories (Repsol/Moeve, TotalEnergies XTL, Eni HVOlution, German independents) <span class="tag part">Partial · prices patchy</span></li>
       <li>⚡ <b>EV charging</b> — Open Charge Map locations + operator tariff pages <span class="tag part">Locations good · tariffs vary by plan</span></li>
+      <li>🇬🇧 <b>United Kingdom</b> — CMA Fuel Finder retailer feeds (B7), converted £→€ at the ECB daily rate <span class="tag ok">Live · station-level</span></li>
+      <li>🇦🇹 <b>Austria</b> — E-Control Spritpreisrechner API <span class="tag part">Live · cheapest per area (Austrian law)</span></li>
+      <li>🚛 <b>DKV network import</b> — customer export merged from data/manual/dkv_stations.csv <span class="tag part">Locations · optional prices</span></li>
+      <li>📋 <b>Manual national averages</b> — data/manual/national_averages.csv for countries without station feeds (BE/NL/LU/IE/CZ/SK/HU/SE)</li>
       <li>🗺 <b>Basemap</b> — © OpenStreetMap contributors · © CARTO</li>
     </ul>
 
@@ -287,7 +287,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='1.2';
+var APP_VER='2.0';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -306,8 +306,19 @@ var COUNTRY={
  ES:{name:'Spain',flag:'\uD83C\uDDEA\uD83C\uDDF8',base:1.439,regAmp:0.012,mwy:[0.05,0.10],hvoShare:0.07,hvoPrem:[0.10,0.20],hvoBrands:['Repsol','Moeve']},
  FR:{name:'France',flag:'\uD83C\uDDEB\uD83C\uDDF7',base:1.652,regAmp:0.020,mwy:[0.12,0.22],hvoShare:0.03,hvoPrem:[0.14,0.26],hvoBrands:['TotalEnergies']},
  DE:{name:'Germany',flag:'\uD83C\uDDE9\uD83C\uDDEA',base:1.618,regAmp:0.018,mwy:[0.10,0.20],hvoShare:0.05,hvoPrem:[0.10,0.22],hvoBrands:['Shell','HEM','Raiffeisen','Freie Tankstelle']},
- IT:{name:'Italy',flag:'\uD83C\uDDEE\uD83C\uDDF9',base:1.679,regAmp:0.022,mwy:[0.09,0.17],hvoShare:0.09,hvoPrem:[0.06,0.16],hvoBrands:['Eni']}
+ IT:{name:'Italy',flag:'\uD83C\uDDEE\uD83C\uDDF9',base:1.679,regAmp:0.022,mwy:[0.09,0.17],hvoShare:0.09,hvoPrem:[0.06,0.16],hvoBrands:['Eni']},
+ GB:{name:'United Kingdom',flag:'\uD83C\uDDEC\uD83C\uDDE7'},
+ AT:{name:'Austria',flag:'\uD83C\uDDE6\uD83C\uDDF9'},
+ BE:{name:'Belgium',flag:'\uD83C\uDDE7\uD83C\uDDEA'},
+ NL:{name:'Netherlands',flag:'\uD83C\uDDF3\uD83C\uDDF1'},
+ LU:{name:'Luxembourg',flag:'\uD83C\uDDF1\uD83C\uDDFA'},
+ IE:{name:'Ireland',flag:'\uD83C\uDDEE\uD83C\uDDEA'},
+ CZ:{name:'Czechia',flag:'\uD83C\uDDE8\uD83C\uDDFF'},
+ SK:{name:'Slovakia',flag:'\uD83C\uDDF8\uD83C\uDDF0'},
+ HU:{name:'Hungary',flag:'\uD83C\uDDED\uD83C\uDDFA'},
+ SE:{name:'Sweden',flag:'\uD83C\uDDF8\uD83C\uDDEA'}
 };
+var CC_ORDER=['ES','FR','DE','IT','GB','AT','BE','NL','LU','IE','CZ','SK','HU','SE'];
 var BRANDS={
  ES:[{n:'Repsol',o:0.020,w:22},{n:'Moeve',o:0.014,w:13},{n:'Galp',o:0.000,w:7},{n:'BP',o:0.020,w:7},{n:'Shell',o:0.028,w:4},{n:'Ballenoil',o:-0.060,w:8},{n:'Plenoil',o:-0.058,w:7},{n:'Petroprix',o:-0.055,w:5},{n:'Avia',o:0.005,w:4}],
  FR:[{n:'TotalEnergies',o:0.030,w:18},{n:'Total Access',o:-0.020,w:9},{n:'E.Leclerc',o:-0.060,w:14},{n:'Intermarch\u00e9',o:-0.052,w:12},{n:'Carrefour',o:-0.050,w:8},{n:'Syst\u00e8me U',o:-0.048,w:7},{n:'Auchan',o:-0.050,w:5},{n:'Esso',o:0.018,w:6},{n:'Avia',o:0.008,w:6},{n:'BP',o:0.020,w:3},{n:'Shell',o:0.030,w:3}],
@@ -474,7 +485,7 @@ Object.keys(stations).forEach(function(f){
 /* ---------------- map ---------------- */
 var reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var map=L.map('map',{preferCanvas:true,minZoom:4,maxZoom:17});
-map.fitBounds([[35.6,-10.6],[55.6,17.0]]);
+map.fitBounds([[35.5,-11.0],[59.8,18.0]]);
 /* Basemap with graceful degradation:
    1) Carto light tiles  2) OpenStreetMap tiles  3) built-in simplified
    vector basemap (country shapes) for environments that block tile servers. */
@@ -560,7 +571,8 @@ var COLORS={green:'#12a150',amber:'#f5a524',red:'#e5484d',gray:'#9aa3b2'};
 var cheapest=null, colorFor=null;
 var LIVE={diesel:false,hvo:false,ev:false};
 var SNAP='Mon 29 Jun 2026';
-var COUNTRY_ON={ES:true,FR:true,DE:true,IT:true};
+var COUNTRY_ON={};CC_ORDER.forEach(function(cc){COUNTRY_ON[cc]=true;});
+var MANUAL={};
 
 function fmtP(p){return p.toFixed(META[currentFuel].dec);}
 function relDelta(s){var a=AVG[currentFuel][s.cc];return a?(s.p-a)/a:0;}
@@ -573,7 +585,7 @@ function statusLabel(k,mode){
 
 /* ---------------- popup ---------------- */
 function popupHtml(s,mode){
- var C=COUNTRY[s.cc],m=META[currentFuel];
+ var C=COUNTRY[s.cc]||{name:s.cc,flag:''},m=META[currentFuel];
  var loc=s.mwy?('Motorway '+(s.road||'')):'Urban / local';
  var html='<div class="fm-pop"><div class="nm">'+esc(s.name)+'</div>';
  if(s.p==null){
@@ -701,7 +713,7 @@ function refreshCore(){
   var s0=strictPriced.slice().sort(function(a,c){return a.p-c.p;})[0];
   cheapest=s0;
   el('cheapName').textContent=s0.name;
-  el('cheapPrice').textContent='\u20ac'+fmtP(s0.p)+' '+m.unit.slice(1)+' \u00b7 '+COUNTRY[s0.cc].name;
+  el('cheapPrice').textContent='\u20ac'+fmtP(s0.p)+' '+m.unit.slice(1)+' \u00b7 '+((COUNTRY[s0.cc]||{name:s0.cc}).name);
   cb.style.display='block';
  }else{cheapest=null;cb.style.display='none';}
 
@@ -730,18 +742,29 @@ function refreshCore(){
  /* national table */
  el('natTitle').textContent='National average \u00b7 '+m.label;
  var rows='';
- Object.keys(COUNTRY).forEach(function(cc){
-  var a=AVG[currentFuel][cc];
-  rows+='<div class="kv" style="opacity:'+(COUNTRY_ON[cc]?'1':'.35')+'"><span class="k">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><b>'+(a?'\u20ac'+fmtP(a)+' '+m.unit.slice(1):'\u2013')+'</b></div>';
+ CC_ORDER.forEach(function(cc){
+  var a=AVG[currentFuel][cc],man=false;
+  if(!a&&MANUAL[currentFuel]&&MANUAL[currentFuel][cc]){a=MANUAL[currentFuel][cc];man=true;}
+  rows+='<div class="kv" style="opacity:'+(COUNTRY_ON[cc]?'1':'.35')+'"><span class="k">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><b>'+(a?(man?'\u2248 ':'')+'\u20ac'+fmtP(a)+' '+m.unit.slice(1):'\u2013')+'</b></div>';
  });
  el('natTable').innerHTML=rows;
 }
+
+/* ---------------- chips (built from registry) ---------------- */
+function buildChips(){
+ var html='';
+ CC_ORDER.forEach(function(cc){
+  html+='<button class="cbtn" data-cc="'+cc+'" aria-pressed="true">'+COUNTRY[cc].flag+'\u00a0'+(cc==='GB'?'UK':cc)+'<b class="cnt" id="cnt'+cc+'">\u2013</b></button>';
+ });
+ el('cseg').innerHTML=html;
+}
+buildChips();
 
 /* ---------------- chip counts + toast ---------------- */
 var toastT=null;
 function toast(msg){var t=el('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show');},3800);}
 function fuelCounts(){
- var c={ES:0,FR:0,DE:0,IT:0},d=stations[currentFuel]||[];
+ var c={},d=stations[currentFuel]||[];CC_ORDER.forEach(function(k){c[k]=0;});
  for(var i=0;i<d.length;i++){var k=d[i].cc;if(c[k]!==undefined)c[k]++;}
  return c;
 }
@@ -839,6 +862,7 @@ function applyPayload(pl){
     stations[k]=fu.stations.map(function(a){
      return{lat:a[0],lng:a[1],cc:a[2],brand:a[3],name:a[4],p:(a[5]==null?null:a[5]),mwy:!!a[6],road:null,kw:a[7]||null,plugs:a[8]||null,ty:a[9]||null};
     });
+    stations[k]=stations[k].filter(function(o){return !!COUNTRY[o.cc];});
     LIVE[k]=true;any=true;
    }
   });
@@ -849,6 +873,7 @@ function applyPayload(pl){
    Object.keys(COUNTRY).forEach(function(cc){AVG[fk][cc]=cnt[cc]?sums[cc]/cnt[cc]:null;});
   });
   if(pl.snapshot_label)SNAP=pl.snapshot_label;
+  if(pl.manual_avg)MANUAL=pl.manual_avg;
   refreshBadges();
   refresh();
   updateChipCounts();
