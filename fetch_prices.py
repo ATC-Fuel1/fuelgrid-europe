@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.12"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.13"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -286,16 +286,10 @@ def fetch_de_dump():
 
 
 def fetch_de():
-    """Germany: try the official daily dump first, fall back to the live
-    API (which may 503 from cloud IPs; it circuit-breaks quickly)."""
-    try:
-        rows = fetch_de_dump()
-    except Exception as exc:
-        print(f"DE dump: failed - {exc}")
-        rows = []
-    if rows:
-        return rows
-    print("DE: daily dump gave nothing this run - trying the live API")
+    """Germany: the live API blocks cloud runners, so this probes it once
+    and only sweeps if it actually answers; otherwise Germany falls back
+    to its pinned official national average. (Station-level Germany will
+    come from the DKV import once that export is loaded.)"""
     return fetch_de_live()
 
 
@@ -306,6 +300,19 @@ def fetch_de_live():
               "(get a free key at creativecommons.tankerkoenig.de)")
         return []
     print(f"DE: API key detected (length {len(key)}, ends ...{key[-4:]})")
+    probe = (f"{DE_URL}?lat=52.520&lng=13.405&rad=5&sort=dist"
+             f"&type=diesel&apikey={key}")
+    try:
+        pj = json.loads(http_get(probe, 30, tries=1).decode("utf-8"))
+        if pj.get("ok") is False:
+            print(f"DE: live API rejected the probe ('{pj.get('message')}') - "
+                  "skipping the sweep; using pinned average this run")
+            return []
+        print("DE: live API answered the probe - running the full sweep")
+    except Exception as exc:
+        print(f"DE: live API unreachable from the runner ({exc}) - skipping the "
+              "sweep; using pinned average (Tankerkoenig blocks cloud IPs)")
+        return []
     seen, out = set(), []
     errs, pause = {}, 0.8
     bad_streak, probed = 0, False
@@ -760,7 +767,7 @@ def fetch_gb():
 
 
 def fetch_at():
-    stations, calls = {}, 0
+    stations, calls, fails = {}, 0, 0
     lat = 46.30
     while lat <= 49.10:
         lng = 9.40
@@ -788,9 +795,13 @@ def fetch_at():
                                      round(p, 3) if p else None, 0]
             except Exception as exc:
                 print(f"AT cell ({lat:.2f},{lng:.2f}) failed - {exc}")
-                time.sleep(2.5)   # cool down when the API refuses connections
+                fails += 1
+                if fails >= 8 and not stations:
+                    print("AT: API refusing every connection - skipping Austria "
+                          "this run (temporary e-control outage; retried next run)")
+                    return []
             calls += 1
-            time.sleep(0.5)
+            time.sleep(0.3)
             lng += 0.5
         lat += 0.25
     out = list(stations.values())
@@ -877,6 +888,7 @@ def carry_forward(prev, fuel_key, rows):
 #   https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en
 # Override any value at runtime via data/manual/national_averages.csv.
 DEFAULT_DIESEL_AVG = {
+    "DE": 1.66,
     "BE": 1.79, "NL": 1.86, "LU": 1.45, "IE": 1.77,
     "CZ": 1.47, "SK": 1.51, "HU": 1.63, "SE": 1.72,
 }
