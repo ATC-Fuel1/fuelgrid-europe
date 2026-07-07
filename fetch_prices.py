@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.8"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.9"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -209,7 +209,9 @@ def fetch_de():
         print("DE: TANKERKOENIG_API_KEY secret not set - skipping Germany "
               "(get a free key at creativecommons.tankerkoenig.de)")
         return []
+    print(f"DE: API key detected (length {len(key)}, ends ...{key[-4:]})")
     seen, out = set(), []
+    errs, pause = {}, 0.8
     lat, lat_step = 47.30, 0.30           # 25 km radius circles on ~33 km grid
     calls = 0
     while lat <= 55.10:
@@ -220,7 +222,15 @@ def fetch_de():
                    f"&sort=dist&type=diesel&apikey={key}")
             try:
                 js = json.loads(http_get(url, 60, tries=2).decode("utf-8"))
-                for s in js.get("stations", []):
+                if js.get("ok") is False:
+                    msg = str(js.get("message") or "unknown API error")[:90]
+                    errs[msg] = errs.get(msg, 0) + 1
+                    if "key" in msg.lower() and errs[msg] >= 3:
+                        print(f"DE: Tankerkoenig rejects the API key ('{msg}') - aborting sweep")
+                        return []
+                    if any(w in msg.lower() for w in ("rate", "limit", "too many")):
+                        pause = min(pause + 0.4, 2.4)
+                for s in (js.get("stations", []) if js.get("ok") is not False else []):
                     sid = s.get("id")
                     p = to_price(s.get("diesel"))
                     slat, slng = s.get("lat"), s.get("lng")
@@ -236,10 +246,15 @@ def fetch_de():
             except Exception as exc:  # one bad cell must not kill the sweep
                 print(f"DE grid cell ({lat:.2f},{lng:.2f}) failed: {exc}")
             calls += 1
-            time.sleep(0.4)  # be polite to the free API
+            time.sleep(pause)  # polite spacing; slows down if the API asks
             lng += lng_step
         lat += lat_step
     print(f"DE: {calls} grid calls, {len(out)} unique stations")
+    if not out and errs:
+        for msg, n in sorted(errs.items(), key=lambda kv: -kv[1])[:2]:
+            print(f"DE: {n} cells answered: {msg}")
+        print("DE: open the repo secret TANKERKOENIG_API_KEY and re-paste the key "
+              "(value must be the key only - no spaces or quotes)")
     return out
 
 
@@ -442,33 +457,57 @@ def _xlsx_rows(raw):
     return rows
 
 
-def fetch_eu_bulletin():
-    """European Commission Weekly Oil Bulletin: official national diesel
-    prices (per 1000 L, national currency) -> EUR/L via the file's own
-    exchange-rate column or ECB reference rates."""
-    raw, last = None, None
-    for u in EU_BULLETIN_URLS:
-        try:
-            raw = http_get(u, 120)
-            break
-        except Exception as exc:
-            last = exc
-            print(f"EU bulletin: {u} failed - {exc}")
-    if raw is None:
-        print(f"EU bulletin unavailable this run ({last})")
-        return {}
+BULLETIN_PAGE = "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en"
+CC_NAMES = {"BELGIUM": "BE", "BELGIQUE": "BE", "NETHERLANDS": "NL",
+            "LUXEMBOURG": "LU", "IRELAND": "IE", "CZECHIA": "CZ",
+            "CZECH REPUBLIC": "CZ", "SLOVAKIA": "SK", "SLOVAK REPUBLIC": "SK",
+            "HUNGARY": "HU", "SWEDEN": "SE"}
+
+
+def _bulletin_candidates():
+    urls = list(EU_BULLETIN_URLS)
     try:
-        rows = _xlsx_rows(raw)
+        html = http_get(BULLETIN_PAGE, 90).decode("utf-8", errors="replace")
+        found = 0
+        for m in re.finditer(r'href="([^"]+\.xlsx[^"]*)"', html, re.I):
+            u = m.group(1)
+            if u.startswith("/"):
+                u = "https://energy.ec.europa.eu" + u
+            if u.startswith("http") and u not in urls:
+                urls.append(u)
+                found += 1
+        print(f"EU bulletin: page scan found {found} workbook link(s)")
     except Exception as exc:
-        print(f"EU bulletin: workbook parse failed - {exc}")
-        return {}
-    try:
-        fx = ecb_rates()
-    except Exception:
-        fx = {}
-    # locate the 'gas oil' (diesel) column from any header row, if present
+        print(f"EU bulletin: page scan failed - {exc}")
+    return urls[:6]
+
+
+def _row_cc(cells):
+    for cell in cells[:3]:
+        t = str(cell or "").strip().upper()
+        if t in BULLETIN_CCS:
+            return t
+        if t in CC_NAMES:
+            return CC_NAMES[t]
+    return None
+
+
+def _row_datekey(cells, fallback):
+    best = fallback
+    for cell in cells:
+        v = to_f(cell)
+        if v is not None and 30000 < v < 70000:       # excel serial date
+            best = max(best, int(v) + 10_000_000)
+        m = re.search(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})", str(cell or ""))
+        if m:
+            d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            best = max(best, y * 10000 + mo * 100 + d + 100_000_000)
+    return best
+
+
+def _parse_bulletin_rows(rows, fx):
     gas_col = rate_col = None
-    for r in rows[:40]:
+    for r in rows[:60]:
         for i, cell in enumerate(r):
             t = str(cell or "").lower()
             if "gas oil" in t or "gasoil" in t:
@@ -477,41 +516,62 @@ def fetch_eu_bulletin():
                 rate_col = i
         if gas_col is not None:
             break
-    out = {}
-    for r in rows:
-        cc = str(r[0] or "").strip().upper() if r else ""
-        if cc not in BULLETIN_CCS or cc in out:
+    best = {}
+    for idx, r in enumerate(rows):
+        cc = _row_cc(r)
+        if cc is None:
             continue
-        nums = [to_f(x) for x in r[1:]]
-        big = [x for x in nums if x is not None and x > 400]  # per-1000L values
         val = None
         if gas_col is not None and gas_col < len(r):
             val = to_f(r[gas_col])
-        if val is None and len(big) >= 2:
-            val = big[1]          # bulletin order: Euro-super 95, then gas oil
+        if val is None or val < 400:
+            big = [x for x in (to_f(c) for c in r) if x is not None and x > 400]
+            val = big[1] if len(big) >= 2 else (big[0] if big else None)
         if val is None:
             continue
-        rate = None
-        if rate_col is not None and rate_col < len(r):
-            rate = to_f(r[rate_col])
+        rate = to_f(r[rate_col]) if (rate_col is not None and rate_col < len(r)) else None
         cur = BULLETIN_CCS[cc]
-        if cur != "EUR" and (rate is None or rate <= 0):
-            rate = fx.get(cur)
         if cur == "EUR":
             rate = 1.0
+        elif not rate or rate <= 0:
+            rate = fx.get(cur)
         if not rate:
-            print(f"EU bulletin {cc}: no {cur} rate available - skipped")
             continue
         eur_l = val / 1000.0 / rate
-        if 0.9 < eur_l < 2.8:
-            out[cc] = round(eur_l, 3)
-            print(f"EU bulletin {cc}: diesel \u2248 \u20ac{out[cc]}/L")
-        else:
-            print(f"EU bulletin {cc}: value {eur_l:.3f} out of range - skipped")
-    return {"diesel": out} if out else {}
+        if not (0.9 < eur_l < 2.8):
+            continue
+        key = _row_datekey(r, idx)
+        if cc not in best or key >= best[cc][0]:
+            best[cc] = (key, round(eur_l, 3))
+    return {cc: v for cc, (k, v) in best.items()}
 
 
-
+def fetch_eu_bulletin():
+    """EC Weekly Oil Bulletin -> official national diesel averages in EUR/L.
+    Locates the current workbook from the bulletin page itself and reads
+    both the latest-prices and full-history layouts (newest week wins)."""
+    try:
+        fx = ecb_rates()
+    except Exception:
+        fx = {}
+    result = {}
+    for u in _bulletin_candidates():
+        try:
+            rows = _xlsx_rows(http_get(u, 120))
+        except Exception as exc:
+            print(f"EU bulletin: {u.split('/')[-1][:60]} - {exc}")
+            continue
+        got = _parse_bulletin_rows(rows, fx)
+        if len(got) > len(result):
+            result = got
+        if len(result) >= 6:
+            break
+    for cc in sorted(result):
+        print(f"EU bulletin {cc}: diesel \u2248 \u20ac{result[cc]}/L")
+    missing = sorted(set(BULLETIN_CCS) - set(result))
+    if missing:
+        print(f"EU bulletin: no values for {','.join(missing)}")
+    return {"diesel": result} if result else {}
 
 
 def fetch_gb():
@@ -523,6 +583,7 @@ def fetch_gb():
         return []
     out, seen, ok_feeds = [], set(), 0
     for tag, url in UK_FEEDS:
+        before = len(out)
         try:
             js = json.loads(http_get(url, 90).decode("utf-8", errors="replace"))
             for s in js.get("stations") or []:
@@ -553,6 +614,7 @@ def fetch_gb():
                 mwy = 1 if brand.upper() in ("MOTO", "WELCOME BREAK", "ROADCHEF") else 0
                 out.append([round(lat, 5), round(lng, 5), "GB", brand, name[:60], eur, mwy])
             ok_feeds += 1
+            print(f"GB feed {tag}: +{len(out) - before}")
         except Exception as exc:
             print(f"GB feed {tag}: failed - {exc}")
     print(f"GB: {len(out)} stations from {ok_feeds}/{len(UK_FEEDS)} feeds")
@@ -736,9 +798,8 @@ def main():
     fuels = {
         "diesel": {"live": True, "stations": diesel},
         # only flip HVO to live if we actually got a meaningful set
-        "hvo": ({"live": True, "stations": hvo} if len(hvo) >= 25
-                else {"live": False}),
-        "ev": ({"live": True, "stations": ev} if len(ev) >= 50 else {"live": False}),
+        "hvo": {"live": len(hvo) >= 25, "stations": hvo},
+        "ev": {"live": len(ev) >= 50, "stations": ev},
     }
     now = dt.datetime.now(dt.timezone.utc)
     payload = {
