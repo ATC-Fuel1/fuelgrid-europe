@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.7"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.8"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -60,6 +60,13 @@ IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
 IT_PREZZI_FILE = "prezzo_alle_8.csv"
 OCM_URL = "https://api.openchargemap.io/v3/poi"
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+EU_BULLETIN_URLS = [
+    "https://ec.europa.eu/energy/observatory/reports/latest_prices_raw_data.xlsx",
+    "https://energy.ec.europa.eu/system/files/latest_prices_raw_data.xlsx",
+]
+# countries we fill from the EC Weekly Oil Bulletin + their national currency
+BULLETIN_CCS = {"BE": "EUR", "NL": "EUR", "LU": "EUR", "IE": "EUR",
+                "CZ": "CZK", "SK": "EUR", "HU": "HUF", "SE": "SEK"}
 AT_URL = "https://api.e-control.at/sprit/1.0/search/gas-stations/by-address"
 MANUAL_DIR = os.path.join(HERE, "data", "manual")
 UK_FEEDS = [
@@ -371,12 +378,140 @@ def fetch_ev():
     return out
 
 
-def gbp_to_eur_rate():
+def ecb_rates():
+    """Official ECB reference rates: units of currency per 1 EUR."""
     root = ET.fromstring(http_get(ECB_FX_URL, 60))
+    out = {}
     for cube in root.iter():
-        if cube.attrib.get("currency") == "GBP":
-            return float(cube.attrib["rate"])
-    raise RuntimeError("GBP not found in ECB feed")
+        cur = cube.attrib.get("currency")
+        if cur:
+            out[cur] = float(cube.attrib["rate"])
+    return out
+
+
+def gbp_to_eur_rate():
+    r = ecb_rates().get("GBP")
+    if not r:
+        raise RuntimeError("GBP not found in ECB feed")
+    return r
+
+
+def _col_idx(ref):
+    n = 0
+    for ch in ref:
+        if ch.isalpha():
+            n = n * 26 + ord(ch.upper()) - 64
+        else:
+            break
+    return n - 1
+
+
+def _xlsx_rows(raw):
+    """Minimal stdlib XLSX reader (zip of XML) - no extra dependencies."""
+    zf = zipfile.ZipFile(io.BytesIO(raw))
+    shared = []
+    if "xl/sharedStrings.xml" in zf.namelist():
+        for si in ET.fromstring(zf.read("xl/sharedStrings.xml")):
+            shared.append("".join(t.text or "" for t in si.iter()
+                                  if t.tag.endswith("}t")))
+    sheet = sorted(n for n in zf.namelist()
+                   if n.startswith("xl/worksheets/sheet"))[0]
+    rows = []
+    for row in ET.fromstring(zf.read(sheet)).iter():
+        if not row.tag.endswith("}row"):
+            continue
+        cells = {}
+        for c in row:
+            if not c.tag.endswith("}c"):
+                continue
+            v = None
+            for ch in c:
+                if ch.tag.endswith("}v"):
+                    v = ch.text
+                elif ch.tag.endswith("}is"):
+                    v = "".join(t.text or "" for t in ch.iter()
+                                if t.tag.endswith("}t"))
+            if c.attrib.get("t") == "s" and v is not None:
+                try:
+                    v = shared[int(v)]
+                except (ValueError, IndexError):
+                    pass
+            cells[_col_idx(c.attrib.get("r", "A"))] = v
+        width = max(cells) + 1 if cells else 0
+        rows.append([cells.get(i) for i in range(width)])
+    return rows
+
+
+def fetch_eu_bulletin():
+    """European Commission Weekly Oil Bulletin: official national diesel
+    prices (per 1000 L, national currency) -> EUR/L via the file's own
+    exchange-rate column or ECB reference rates."""
+    raw, last = None, None
+    for u in EU_BULLETIN_URLS:
+        try:
+            raw = http_get(u, 120)
+            break
+        except Exception as exc:
+            last = exc
+            print(f"EU bulletin: {u} failed - {exc}")
+    if raw is None:
+        print(f"EU bulletin unavailable this run ({last})")
+        return {}
+    try:
+        rows = _xlsx_rows(raw)
+    except Exception as exc:
+        print(f"EU bulletin: workbook parse failed - {exc}")
+        return {}
+    try:
+        fx = ecb_rates()
+    except Exception:
+        fx = {}
+    # locate the 'gas oil' (diesel) column from any header row, if present
+    gas_col = rate_col = None
+    for r in rows[:40]:
+        for i, cell in enumerate(r):
+            t = str(cell or "").lower()
+            if "gas oil" in t or "gasoil" in t:
+                gas_col = i
+            if "exchange" in t or "taux" in t:
+                rate_col = i
+        if gas_col is not None:
+            break
+    out = {}
+    for r in rows:
+        cc = str(r[0] or "").strip().upper() if r else ""
+        if cc not in BULLETIN_CCS or cc in out:
+            continue
+        nums = [to_f(x) for x in r[1:]]
+        big = [x for x in nums if x is not None and x > 400]  # per-1000L values
+        val = None
+        if gas_col is not None and gas_col < len(r):
+            val = to_f(r[gas_col])
+        if val is None and len(big) >= 2:
+            val = big[1]          # bulletin order: Euro-super 95, then gas oil
+        if val is None:
+            continue
+        rate = None
+        if rate_col is not None and rate_col < len(r):
+            rate = to_f(r[rate_col])
+        cur = BULLETIN_CCS[cc]
+        if cur != "EUR" and (rate is None or rate <= 0):
+            rate = fx.get(cur)
+        if cur == "EUR":
+            rate = 1.0
+        if not rate:
+            print(f"EU bulletin {cc}: no {cur} rate available - skipped")
+            continue
+        eur_l = val / 1000.0 / rate
+        if 0.9 < eur_l < 2.8:
+            out[cc] = round(eur_l, 3)
+            print(f"EU bulletin {cc}: diesel \u2248 \u20ac{out[cc]}/L")
+        else:
+            print(f"EU bulletin {cc}: value {eur_l:.3f} out of range - skipped")
+    return {"diesel": out} if out else {}
+
+
+
 
 
 def fetch_gb():
@@ -535,6 +670,18 @@ def carry_forward(prev, fuel_key, rows):
 
 
 # ------------------------------------------------------------------ main
+def merged_averages():
+    """Official EU bulletin averages, with the manual CSV as an override."""
+    base = fetch_eu_bulletin()
+    manual = load_manual_averages()
+    out = {}
+    for fuel in set(list(base.keys()) + list(manual.keys())):
+        out[fuel] = {}
+        out[fuel].update(base.get(fuel, {}))
+        out[fuel].update(manual.get(fuel, {}))
+    return out
+
+
 def main():
     diesel, hvo = [], []
     jobs = [
@@ -598,7 +745,7 @@ def main():
         "generated": now.isoformat(timespec="seconds"),
         "snapshot_label": now.strftime("%a %-d %b %Y"),
         "fuels": fuels,
-        "manual_avg": load_manual_averages(),
+        "manual_avg": merged_averages(),
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:

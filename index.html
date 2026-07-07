@@ -192,6 +192,7 @@
     .panel{right:10px;width:min(296px,calc(100vw - 20px))}
     .panel-toggle{right:10px}
   }
+.avgBadge{transform:translate(-50%,-50%);background:#3b4c68;color:#fff;border:1.5px dashed rgba(255,255,255,.75);border-radius:999px;padding:4px 9px;font:600 11px/1 system-ui,Arial;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:default}
 </style>
 </head>
 <body>
@@ -200,7 +201,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v2.0</span>
+    <span class="ver">v2.1</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -273,7 +274,8 @@
       <li>🇬🇧 <b>United Kingdom</b> — CMA Fuel Finder retailer feeds (B7), converted £→€ at the ECB daily rate <span class="tag ok">Live · station-level</span></li>
       <li>🇦🇹 <b>Austria</b> — E-Control Spritpreisrechner API <span class="tag part">Live · cheapest per area (Austrian law)</span></li>
       <li>🚛 <b>DKV network import</b> — customer export merged from data/manual/dkv_stations.csv <span class="tag part">Locations · optional prices</span></li>
-      <li>📋 <b>Manual national averages</b> — data/manual/national_averages.csv for countries without station feeds (BE/NL/LU/IE/CZ/SK/HU/SE)</li>
+      <li>🇪🇺 <b>EU Weekly Oil Bulletin</b> — European Commission official weekly national diesel averages for BE/NL/LU/IE/CZ/SK/HU/SE, national currencies converted at ECB rates — shown as ≈ badges on the map <span class="tag ok">Official</span></li>
+      <li>📋 <b>Manual override</b> — data/manual/national_averages.csv (country,fuel,eur) replaces any average by hand</li>
       <li>🗺 <b>Basemap</b> — © OpenStreetMap contributors · © CARTO</li>
     </ul>
 
@@ -287,7 +289,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='2.0';
+var APP_VER='2.1';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -307,16 +309,16 @@ var COUNTRY={
  FR:{name:'France',flag:'\uD83C\uDDEB\uD83C\uDDF7',base:1.652,regAmp:0.020,mwy:[0.12,0.22],hvoShare:0.03,hvoPrem:[0.14,0.26],hvoBrands:['TotalEnergies']},
  DE:{name:'Germany',flag:'\uD83C\uDDE9\uD83C\uDDEA',base:1.618,regAmp:0.018,mwy:[0.10,0.20],hvoShare:0.05,hvoPrem:[0.10,0.22],hvoBrands:['Shell','HEM','Raiffeisen','Freie Tankstelle']},
  IT:{name:'Italy',flag:'\uD83C\uDDEE\uD83C\uDDF9',base:1.679,regAmp:0.022,mwy:[0.09,0.17],hvoShare:0.09,hvoPrem:[0.06,0.16],hvoBrands:['Eni']},
- GB:{name:'United Kingdom',flag:'\uD83C\uDDEC\uD83C\uDDE7'},
- AT:{name:'Austria',flag:'\uD83C\uDDE6\uD83C\uDDF9'},
- BE:{name:'Belgium',flag:'\uD83C\uDDE7\uD83C\uDDEA'},
- NL:{name:'Netherlands',flag:'\uD83C\uDDF3\uD83C\uDDF1'},
- LU:{name:'Luxembourg',flag:'\uD83C\uDDF1\uD83C\uDDFA'},
- IE:{name:'Ireland',flag:'\uD83C\uDDEE\uD83C\uDDEA'},
- CZ:{name:'Czechia',flag:'\uD83C\uDDE8\uD83C\uDDFF'},
- SK:{name:'Slovakia',flag:'\uD83C\uDDF8\uD83C\uDDF0'},
- HU:{name:'Hungary',flag:'\uD83C\uDDED\uD83C\uDDFA'},
- SE:{name:'Sweden',flag:'\uD83C\uDDF8\uD83C\uDDEA'}
+ GB:{name:'United Kingdom',flag:'\uD83C\uDDEC\uD83C\uDDE7',ctr:[52.8,-1.9]},
+ AT:{name:'Austria',flag:'\uD83C\uDDE6\uD83C\uDDF9',ctr:[47.6,14.1]},
+ BE:{name:'Belgium',flag:'\uD83C\uDDE7\uD83C\uDDEA',ctr:[50.64,4.67]},
+ NL:{name:'Netherlands',flag:'\uD83C\uDDF3\uD83C\uDDF1',ctr:[52.2,5.3]},
+ LU:{name:'Luxembourg',flag:'\uD83C\uDDF1\uD83C\uDDFA',ctr:[49.68,6.13]},
+ IE:{name:'Ireland',flag:'\uD83C\uDDEE\uD83C\uDDEA',ctr:[53.3,-7.7]},
+ CZ:{name:'Czechia',flag:'\uD83C\uDDE8\uD83C\uDDFF',ctr:[49.8,15.3]},
+ SK:{name:'Slovakia',flag:'\uD83C\uDDF8\uD83C\uDDF0',ctr:[48.7,19.5]},
+ HU:{name:'Hungary',flag:'\uD83C\uDDED\uD83C\uDDFA',ctr:[47.2,19.4]},
+ SE:{name:'Sweden',flag:'\uD83C\uDDF8\uD83C\uDDEA',ctr:[59.3,15.5]}
 };
 var CC_ORDER=['ES','FR','DE','IT','GB','AT','BE','NL','LU','IE','CZ','SK','HU','SE'];
 var BRANDS={
@@ -722,6 +724,15 @@ function refreshCore(){
 
  /* legend */
  if(mode==='agg'){
+  var fcB=fuelCounts();
+  CC_ORDER.forEach(function(cc){
+   if(!COUNTRY_ON[cc]||fcB[cc]>0)return;
+   var mv=MANUAL[currentFuel]&&MANUAL[currentFuel][cc],ct=COUNTRY[cc].ctr;
+   if(!mv||!ct)return;
+   var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[0,0],html:'<div class="avgBadge">'+COUNTRY[cc].flag+' \u2248\u20ac'+mv.toFixed(2)+'</div>'}),zIndexOffset:500});
+   mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official weekly national average (EU Oil Bulletin / manual) \u00b7 no station-level source yet',{direction:'top'});
+   aggLayer.addLayer(mk);
+  });
   el('lgGreen').textContent='\u2265 1.5% below national avg';
   el('lgAmber').textContent='Within \u00b11.5% of national avg';
   el('lgRed').textContent='\u2265 1.5% above national avg';
