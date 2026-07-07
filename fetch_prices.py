@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.13"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.15"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -219,14 +219,35 @@ TK_DUMP_BASE = ("https://dev.azure.com/tankerkoenig/tankerkoenig-data/_apis/"
                 "git/repositories/tankerkoenig-data/items")
 
 
-def _tk_dump(path):
-    url = f"{TK_DUMP_BASE}?path={path}&api-version=6.0&download=true"
-    return http_get(url, 120)
+_TK_VARIANTS = [
+    "api-version=7.0&$format=octetStream&resolveLfs=true",
+    "api-version=6.0&$format=octetStream&resolveLfs=true",
+    "api-version=6.0&download=true&resolveLfs=true",
+    "$format=text&api-version=7.0",
+]
+
+
+def _tk_dump(path, expect):
+    """Fetch a raw CSV file from the Azure DevOps repo. Azure only returns
+    raw bytes with the right query param, so try the known variants and
+    verify the response actually contains the expected CSV header."""
+    last = ""
+    for q in _TK_VARIANTS:
+        url = f"{TK_DUMP_BASE}?path={path}&{q}"
+        try:
+            txt = http_get(url, 120).decode("utf-8", errors="replace")
+        except Exception as exc:
+            last = f"HTTP {exc}"
+            continue
+        if expect in txt[:600].lower():
+            return txt
+        last = "got non-CSV: " + txt[:90].replace("\n", " ").replace("\r", " ")
+    raise RuntimeError(last or "no response")
 
 
 def _tk_stations(day):
-    raw = _tk_dump(f"/stations/{day:%Y/%m}/{day:%Y-%m-%d}-stations.csv")
-    txt = raw.decode("utf-8", errors="replace")
+    txt = _tk_dump(f"/stations/{day:%Y/%m}/{day:%Y-%m-%d}-stations.csv",
+                   "latitude")
     st = {}
     for r in csv.DictReader(io.StringIO(txt)):
         uuid = (r.get("uuid") or "").strip()
@@ -262,8 +283,8 @@ def fetch_de_dump():
     for back in range(8):
         day = dt.date.today() - dt.timedelta(days=back)
         try:
-            txt = _tk_dump(f"/prices/{day:%Y/%m}/{day:%Y-%m-%d}-prices.csv"
-                           ).decode("utf-8", errors="replace")
+            txt = _tk_dump(f"/prices/{day:%Y/%m}/{day:%Y-%m-%d}-prices.csv",
+                           "station_uuid")
         except Exception as exc:
             print(f"DE dump: prices {day} unavailable ({exc})")
             continue
@@ -286,10 +307,18 @@ def fetch_de_dump():
 
 
 def fetch_de():
-    """Germany: the live API blocks cloud runners, so this probes it once
-    and only sweeps if it actually answers; otherwise Germany falls back
-    to its pinned official national average. (Station-level Germany will
-    come from the DKV import once that export is loaded.)"""
+    """Germany: pull the official daily CSV dump first (static host, no
+    rate limit, ~15k stations in two files); if it yields nothing this
+    run, fall back to the live API (which may be blocked/throttled)."""
+    try:
+        rows = fetch_de_dump()
+    except Exception as exc:
+        print(f"DE dump: failed - {exc}")
+        rows = []
+    if rows:
+        print(f"DE: {len(rows)} stations from the daily dump")
+        return rows
+    print("DE: daily dump empty this run - trying the live API")
     return fetch_de_live()
 
 
@@ -325,7 +354,7 @@ def fetch_de_live():
             url = (f"{DE_URL}?lat={lat:.3f}&lng={lng:.3f}&rad=25"
                    f"&sort=dist&type=diesel&apikey={key}")
             try:
-                js = json.loads(http_get(url, 60, tries=2).decode("utf-8"))
+                js = json.loads(http_get(url, 45, tries=1).decode("utf-8"))
                 bad_streak = 0
                 if js.get("ok") is False:
                     msg = str(js.get("message") or "unknown API error")[:90]
@@ -352,14 +381,9 @@ def fetch_de_live():
                 print(f"DE grid cell ({lat:.2f},{lng:.2f}) failed: {exc}")
                 bad_streak += 1
                 if bad_streak >= 8:
-                    if probed:
-                        print("DE: Tankerkoenig failing for every cell - stopping "
-                              "the sweep this run (outage or cloud-IP blocking on "
-                              "their side; key is fine, retried automatically next run)")
-                        return out
-                    print("DE: every cell failing - cooling down 90s, then probing again")
-                    time.sleep(90)
-                    probed, bad_streak = True, 0
+                    print(f"DE: {bad_streak} cells failed in a row - stopping the "
+                          f"sweep, keeping {len(out)} stations (retried next run)")
+                    return out
             calls += 1
             time.sleep(pause)  # polite spacing; slows down if the API asks
             lng += lng_step
@@ -775,7 +799,9 @@ def fetch_at():
             url = (f"{AT_URL}?latitude={lat:.3f}&longitude={lng:.3f}"
                    f"&fuelType=DIE&includeClosed=false")
             try:
-                for s in json.loads(http_get(url, 60, tries=2).decode("utf-8")):
+                data = json.loads(http_get(url, 45, tries=1).decode("utf-8"))
+                fails = 0
+                for s in data:
                     sid = s.get("id")
                     loc = s.get("location") or {}
                     la, lo = loc.get("latitude"), loc.get("longitude")
@@ -796,10 +822,12 @@ def fetch_at():
             except Exception as exc:
                 print(f"AT cell ({lat:.2f},{lng:.2f}) failed - {exc}")
                 fails += 1
-                if fails >= 8 and not stations:
-                    print("AT: API refusing every connection - skipping Austria "
-                          "this run (temporary e-control outage; retried next run)")
-                    return []
+                if fails >= 12:
+                    out = list(stations.values())
+                    priced = sum(1 for r in out if r[5] is not None)
+                    print(f"AT: {fails} cells failed in a row - stopping, keeping "
+                          f"{len(out)} stations ({priced} priced) (retried next run)")
+                    return out
             calls += 1
             time.sleep(0.3)
             lng += 0.5
