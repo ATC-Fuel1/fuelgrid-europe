@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.11"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.12"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -215,7 +215,91 @@ def fetch_fr():
 
 
 # --------------------------------------------------------------- Germany
+TK_DUMP_BASE = ("https://dev.azure.com/tankerkoenig/tankerkoenig-data/_apis/"
+                "git/repositories/tankerkoenig-data/items")
+
+
+def _tk_dump(path):
+    url = f"{TK_DUMP_BASE}?path={path}&api-version=6.0&download=true"
+    return http_get(url, 120)
+
+
+def _tk_stations(day):
+    raw = _tk_dump(f"/stations/{day:%Y/%m}/{day:%Y-%m-%d}-stations.csv")
+    txt = raw.decode("utf-8", errors="replace")
+    st = {}
+    for r in csv.DictReader(io.StringIO(txt)):
+        uuid = (r.get("uuid") or "").strip()
+        lat, lng = to_f(r.get("latitude")), to_f(r.get("longitude"))
+        if not uuid or lat is None or lng is None:
+            continue
+        if not (47.0 < lat < 55.2 and 5.8 < lng < 15.1):
+            continue
+        brand = ((r.get("brand") or "").strip().title() or "Tankstelle")[:30]
+        city = (r.get("city") or "").strip().title()
+        st[uuid] = (round(lat, 5), round(lng, 5), brand, city)
+    return st
+
+
+def fetch_de_dump():
+    """Primary German source: Tankerkoenig's official dated CSV dumps
+    (the MTS-K dataset) from its Azure data repository - a static host
+    that, unlike the live API, does not block cloud runners. Join the
+    stations dump with the prices dump on the station UUID."""
+    stations = None
+    for back in range(8):                      # today, then walk back a week
+        day = dt.date.today() - dt.timedelta(days=back)
+        try:
+            stations = _tk_stations(day)
+            if stations:
+                print(f"DE dump: {len(stations)} stations ({day})")
+                break
+        except Exception as exc:
+            print(f"DE dump: stations {day} unavailable ({exc})")
+            stations = None
+    if not stations:
+        return []
+    for back in range(8):
+        day = dt.date.today() - dt.timedelta(days=back)
+        try:
+            txt = _tk_dump(f"/prices/{day:%Y/%m}/{day:%Y-%m-%d}-prices.csv"
+                           ).decode("utf-8", errors="replace")
+        except Exception as exc:
+            print(f"DE dump: prices {day} unavailable ({exc})")
+            continue
+        out = []
+        for r in csv.DictReader(io.StringIO(txt)):
+            st = stations.get((r.get("station_uuid") or "").strip())
+            if not st:
+                continue
+            p = to_price(r.get("diesel"))
+            if p is None:
+                continue
+            lat, lng, brand, city = st
+            name = (f"{brand} \u00b7 {city}" if city else brand)[:60]
+            out.append([lat, lng, "DE", brand, name, round(p, 3), 0])
+        if out:
+            print(f"DE dump: {len(out)} diesel prices ({day})")
+            return out
+        print(f"DE dump: prices {day} joined 0 stations - trying older")
+    return []
+
+
 def fetch_de():
+    """Germany: try the official daily dump first, fall back to the live
+    API (which may 503 from cloud IPs; it circuit-breaks quickly)."""
+    try:
+        rows = fetch_de_dump()
+    except Exception as exc:
+        print(f"DE dump: failed - {exc}")
+        rows = []
+    if rows:
+        return rows
+    print("DE: daily dump gave nothing this run - trying the live API")
+    return fetch_de_live()
+
+
+def fetch_de_live():
     key = os.environ.get("TANKERKOENIG_API_KEY", "").strip()
     if not key:
         print("DE: TANKERKOENIG_API_KEY secret not set - skipping Germany "
@@ -787,15 +871,25 @@ def carry_forward(prev, fuel_key, rows):
 
 
 # ------------------------------------------------------------------ main
+# Official EU Weekly Oil Bulletin diesel averages (EUR/L, incl. taxes) for
+# countries with no station-level feed. Indicative baseline - refresh from
+# the public bulletin any time (it opens in a browser as an Excel file):
+#   https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en
+# Override any value at runtime via data/manual/national_averages.csv.
+DEFAULT_DIESEL_AVG = {
+    "BE": 1.79, "NL": 1.86, "LU": 1.45, "IE": 1.77,
+    "CZ": 1.47, "SK": 1.51, "HU": 1.63, "SE": 1.72,
+}
+
+
 def merged_averages():
-    """Official EU bulletin averages, with the manual CSV as an override."""
-    base = fetch_eu_bulletin()
-    manual = load_manual_averages()
-    out = {}
-    for fuel in set(list(base.keys()) + list(manual.keys())):
-        out[fuel] = {}
-        out[fuel].update(base.get(fuel, {}))
-        out[fuel].update(manual.get(fuel, {}))
+    """No-feed national diesel averages: a pinned official baseline,
+    overridden by data/manual/national_averages.csv. The Commission's
+    spreadsheet changes format/URL too often to parse reliably from an
+    automated run, so the figures are pinned rather than scraped."""
+    out = {"diesel": dict(DEFAULT_DIESEL_AVG)}
+    for fuel, m in load_manual_averages().items():
+        out.setdefault(fuel, {}).update(m)
     return out
 
 
