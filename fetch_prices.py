@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.9"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.10"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -49,6 +49,8 @@ ES_URL = ("https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/"
           "PreciosCarburantes/EstacionesTerrestres/")
 # Lighter diesel-only endpoint, used if the full feed keeps dropping (4 = Gasoleo A)
 ES_URL_DIESEL = ES_URL.rstrip("/") + "/FiltroProducto/4"
+ES_HOSTS = ["https://sedeaplicaciones.minetur.gob.es",
+            "https://sedeaplicaciones2.minetur.gob.es"]
 FR_URL = "https://donnees.roulez-eco.fr/opendata/instantane"
 DE_URL = "https://creativecommons.tankerkoenig.de/json/list.php"
 # Italy moved domains before (mise -> mimit); we try both hosts.
@@ -144,12 +146,23 @@ def row(lat, lng, cc, brand, name, price, mwy):
 # ----------------------------------------------------------------- Spain
 def fetch_es():
     filtered = False
-    try:
-        data = json.loads(http_get(ES_URL).decode("utf-8"))
-    except Exception as exc:
-        print(f"ES: full feed failed ({exc}); trying diesel-only endpoint")
-        data = json.loads(http_get(ES_URL_DIESEL).decode("utf-8"))
-        filtered = True
+    data = last = None
+    for host in ES_HOSTS:
+        base = host + ("/ServiciosRESTCarburantes/PreciosCarburantes/"
+                       "EstacionesTerrestres/")
+        for url, filt in ((base, False), (base.rstrip("/") + "/FiltroProducto/4", True)):
+            try:
+                data = json.loads(http_get(url).decode("utf-8"))
+                filtered = filt
+                break
+            except Exception as exc:
+                last = exc
+                print(f"ES: {host.split('//')[1]}"
+                      f"{' diesel-only' if filt else ''} failed ({exc})")
+        if data is not None:
+            break
+    if data is None:
+        raise RuntimeError(f"all MITECO endpoints failed ({last})")
     diesel, hvo = [], []
     for e in data.get("ListaEESSPrecio", []):
         lat = to_f(e.get("Latitud"))
@@ -421,40 +434,42 @@ def _col_idx(ref):
     return n - 1
 
 
-def _xlsx_rows(raw):
-    """Minimal stdlib XLSX reader (zip of XML) - no extra dependencies."""
+def _xlsx_sheets(raw):
+    """All worksheets of an XLSX as row-lists - stdlib only."""
     zf = zipfile.ZipFile(io.BytesIO(raw))
     shared = []
     if "xl/sharedStrings.xml" in zf.namelist():
         for si in ET.fromstring(zf.read("xl/sharedStrings.xml")):
             shared.append("".join(t.text or "" for t in si.iter()
                                   if t.tag.endswith("}t")))
-    sheet = sorted(n for n in zf.namelist()
-                   if n.startswith("xl/worksheets/sheet"))[0]
-    rows = []
-    for row in ET.fromstring(zf.read(sheet)).iter():
-        if not row.tag.endswith("}row"):
-            continue
-        cells = {}
-        for c in row:
-            if not c.tag.endswith("}c"):
+    sheets = []
+    for name in sorted(n for n in zf.namelist()
+                       if n.startswith("xl/worksheets/sheet")):
+        rows = []
+        for row in ET.fromstring(zf.read(name)).iter():
+            if not row.tag.endswith("}row"):
                 continue
-            v = None
-            for ch in c:
-                if ch.tag.endswith("}v"):
-                    v = ch.text
-                elif ch.tag.endswith("}is"):
-                    v = "".join(t.text or "" for t in ch.iter()
-                                if t.tag.endswith("}t"))
-            if c.attrib.get("t") == "s" and v is not None:
-                try:
-                    v = shared[int(v)]
-                except (ValueError, IndexError):
-                    pass
-            cells[_col_idx(c.attrib.get("r", "A"))] = v
-        width = max(cells) + 1 if cells else 0
-        rows.append([cells.get(i) for i in range(width)])
-    return rows
+            cells = {}
+            for c in row:
+                if not c.tag.endswith("}c"):
+                    continue
+                v = None
+                for ch in c:
+                    if ch.tag.endswith("}v"):
+                        v = ch.text
+                    elif ch.tag.endswith("}is"):
+                        v = "".join(t.text or "" for t in ch.iter()
+                                    if t.tag.endswith("}t"))
+                if c.attrib.get("t") == "s" and v is not None:
+                    try:
+                        v = shared[int(v)]
+                    except (ValueError, IndexError):
+                        pass
+                cells[_col_idx(c.attrib.get("r", "A"))] = v
+            width = max(cells) + 1 if cells else 0
+            rows.append([cells.get(k) for k in range(width)])
+        sheets.append(rows)
+    return sheets
 
 
 BULLETIN_PAGE = "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en"
@@ -479,7 +494,15 @@ def _bulletin_candidates():
         print(f"EU bulletin: page scan found {found} workbook link(s)")
     except Exception as exc:
         print(f"EU bulletin: page scan failed - {exc}")
-    return urls[:6]
+
+    def prio(u):
+        low = u.lower()
+        if "wo_tax" in low or "wo-tax" in low or "without" in low:
+            return 2          # prices WITHOUT taxes - not what we publish
+        if "tax" in low or "raw" in low:
+            return 0
+        return 1
+    return sorted(urls, key=prio)[:8]
 
 
 def _row_cc(cells):
@@ -505,15 +528,19 @@ def _row_datekey(cells, fallback):
     return best
 
 
+def _plausible(v):
+    return 1.2 < v < 2.6      # diesel incl. taxes, EUR per litre
+
+
 def _parse_bulletin_rows(rows, fx):
     gas_col = rate_col = None
     for r in rows[:60]:
-        for i, cell in enumerate(r):
+        for k, cell in enumerate(r):
             t = str(cell or "").lower()
             if "gas oil" in t or "gasoil" in t:
-                gas_col = i
+                gas_col = k
             if "exchange" in t or "taux" in t:
-                rate_col = i
+                rate_col = k
         if gas_col is not None:
             break
     best = {}
@@ -529,27 +556,30 @@ def _parse_bulletin_rows(rows, fx):
             val = big[1] if len(big) >= 2 else (big[0] if big else None)
         if val is None:
             continue
-        rate = to_f(r[rate_col]) if (rate_col is not None and rate_col < len(r)) else None
+        # candidate denominations: the file's own rate, ECB national rate, already-EUR
+        rates = []
+        if rate_col is not None and rate_col < len(r):
+            fr = to_f(r[rate_col])
+            if fr and fr > 0:
+                rates.append(fr)
         cur = BULLETIN_CCS[cc]
-        if cur == "EUR":
-            rate = 1.0
-        elif not rate or rate <= 0:
-            rate = fx.get(cur)
-        if not rate:
-            continue
-        eur_l = val / 1000.0 / rate
-        if not (0.9 < eur_l < 2.8):
+        if cur != "EUR" and fx.get(cur):
+            rates.append(fx[cur])
+        rates.append(1.0)
+        eur_l = next((round(val / 1000.0 / rt, 3) for rt in rates
+                      if _plausible(val / 1000.0 / rt)), None)
+        if eur_l is None:
             continue
         key = _row_datekey(r, idx)
         if cc not in best or key >= best[cc][0]:
-            best[cc] = (key, round(eur_l, 3))
+            best[cc] = (key, eur_l)
     return {cc: v for cc, (k, v) in best.items()}
 
 
 def fetch_eu_bulletin():
-    """EC Weekly Oil Bulletin -> official national diesel averages in EUR/L.
-    Locates the current workbook from the bulletin page itself and reads
-    both the latest-prices and full-history layouts (newest week wins)."""
+    """EC Weekly Oil Bulletin -> official national diesel averages, EUR/L.
+    Scans the bulletin page for workbooks, reads every sheet, detects the
+    currency denomination, and only accepts plausible with-taxes sets."""
     try:
         fx = ecb_rates()
     except Exception:
@@ -557,13 +587,25 @@ def fetch_eu_bulletin():
     result = {}
     for u in _bulletin_candidates():
         try:
-            rows = _xlsx_rows(http_get(u, 120))
+            sheets = _xlsx_sheets(http_get(u, 120))
         except Exception as exc:
             print(f"EU bulletin: {u.split('/')[-1][:60]} - {exc}")
             continue
-        got = _parse_bulletin_rows(rows, fx)
-        if len(got) > len(result):
-            result = got
+        fname = (u.split("/")[-1].split("?")[0] or "workbook")[:50]
+        for si, rows in enumerate(sheets):
+            got = _parse_bulletin_rows(rows, fx)
+            if len(got) < 4:
+                continue
+            vals = sorted(got.values())
+            med = vals[len(vals) // 2]
+            if not (1.3 < med < 2.3):
+                print(f"EU bulletin: {fname} sheet {si + 1} rejected "
+                      f"(median \u20ac{med:.3f} implausible)")
+                continue
+            print(f"EU bulletin: accepted {fname} sheet {si + 1} "
+                  f"({len(got)} countries)")
+            if len(got) > len(result):
+                result = got
         if len(result) >= 6:
             break
     for cc in sorted(result):
@@ -597,7 +639,8 @@ def fetch_gb():
                 sid = str(s.get("site_id") or f"{lat:.4f},{lng:.4f}")
                 if sid in seen:
                     continue
-                p = (s.get("prices") or {}).get("B7")
+                pr = s.get("prices") or {}
+                p = pr.get("B7", pr.get("b7"))
                 try:
                     p = float(str(p).replace(",", "."))
                 except (TypeError, ValueError):
@@ -650,8 +693,9 @@ def fetch_at():
                                      round(p, 3) if p else None, 0]
             except Exception as exc:
                 print(f"AT cell ({lat:.2f},{lng:.2f}) failed - {exc}")
+                time.sleep(2.5)   # cool down when the API refuses connections
             calls += 1
-            time.sleep(0.25)
+            time.sleep(0.5)
             lng += 0.5
         lat += 0.25
     out = list(stations.values())
