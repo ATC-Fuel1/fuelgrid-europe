@@ -95,6 +95,7 @@
   .agg.s-amber{background:rgba(245,165,36,.95)}
   .agg.s-red{background:rgba(229,72,77,.93)}
   .agg.s-gray{background:rgba(154,163,178,.93)}
+  .agg.s-avg{background:rgba(59,76,104,.96);border-style:dashed;border-width:2.5px}
 
   /* Popups */
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
@@ -201,7 +202,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v2.1</span>
+    <span class="ver">v2.2</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -289,7 +290,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='2.1';
+var APP_VER='2.2';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -729,14 +730,15 @@ function refreshCore(){
    if(!COUNTRY_ON[cc]||fcB[cc]>0)return;
    var mv=MANUAL[currentFuel]&&MANUAL[currentFuel][cc],ct=COUNTRY[cc].ctr;
    if(!mv||!ct)return;
-   var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[0,0],html:'<div class="avgBadge">'+COUNTRY[cc].flag+' \u2248\u20ac'+mv.toFixed(2)+'</div>'}),zIndexOffset:500});
-   mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official weekly national average (EU Oil Bulletin / manual) \u00b7 no station-level source yet',{direction:'top'});
+   var dm=44,fs=13.5;
+   var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],html:'<div class="agg s-avg" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+mv.toFixed(2)+'</div>'}),zIndexOffset:400});
+   mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official national average \u20ac'+mv.toFixed(2)+' '+META[currentFuel].unit.slice(1)+' \u00b7 no station-level source published yet',{direction:'top',offset:[0,-dm/2]});
    aggLayer.addLayer(mk);
   });
   el('lgGreen').textContent='\u2265 1.5% below national avg';
   el('lgAmber').textContent='Within \u00b11.5% of national avg';
   el('lgRed').textContent='\u2265 1.5% above national avg';
-  el('legendCap').textContent='Bubble colour compares the area average with the national average of each country. Click a bubble to zoom in.';
+  el('legendCap').innerHTML='Coloured bubbles compare each area with its national average \u2014 click to zoom in. <b>Dashed slate</b> bubbles are the official national average for countries with no station-level feed yet.';
  }else{
   el('lgGreen').textContent='Cheapest \u2153 of stations in view';
   el('lgAmber').textContent='Middle \u2153';
