@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.10"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.11"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -49,8 +49,7 @@ ES_URL = ("https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/"
           "PreciosCarburantes/EstacionesTerrestres/")
 # Lighter diesel-only endpoint, used if the full feed keeps dropping (4 = Gasoleo A)
 ES_URL_DIESEL = ES_URL.rstrip("/") + "/FiltroProducto/4"
-ES_HOSTS = ["https://sedeaplicaciones.minetur.gob.es",
-            "https://sedeaplicaciones2.minetur.gob.es"]
+ES_HOSTS = ["https://sedeaplicaciones.minetur.gob.es"]
 FR_URL = "https://donnees.roulez-eco.fr/opendata/instantane"
 DE_URL = "https://creativecommons.tankerkoenig.de/json/list.php"
 # Italy moved domains before (mise -> mimit); we try both hosts.
@@ -225,6 +224,7 @@ def fetch_de():
     print(f"DE: API key detected (length {len(key)}, ends ...{key[-4:]})")
     seen, out = set(), []
     errs, pause = {}, 0.8
+    bad_streak, probed = 0, False
     lat, lat_step = 47.30, 0.30           # 25 km radius circles on ~33 km grid
     calls = 0
     while lat <= 55.10:
@@ -235,6 +235,7 @@ def fetch_de():
                    f"&sort=dist&type=diesel&apikey={key}")
             try:
                 js = json.loads(http_get(url, 60, tries=2).decode("utf-8"))
+                bad_streak = 0
                 if js.get("ok") is False:
                     msg = str(js.get("message") or "unknown API error")[:90]
                     errs[msg] = errs.get(msg, 0) + 1
@@ -258,6 +259,16 @@ def fetch_de():
                                    brand, name, p, 0))
             except Exception as exc:  # one bad cell must not kill the sweep
                 print(f"DE grid cell ({lat:.2f},{lng:.2f}) failed: {exc}")
+                bad_streak += 1
+                if bad_streak >= 8:
+                    if probed:
+                        print("DE: Tankerkoenig failing for every cell - stopping "
+                              "the sweep this run (outage or cloud-IP blocking on "
+                              "their side; key is fine, retried automatically next run)")
+                        return out
+                    print("DE: every cell failing - cooling down 90s, then probing again")
+                    time.sleep(90)
+                    probed, bad_streak = True, 0
             calls += 1
             time.sleep(pause)  # polite spacing; slows down if the API asks
             lng += lng_step
