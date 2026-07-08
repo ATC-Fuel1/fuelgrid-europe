@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.19"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.20"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -938,6 +938,7 @@ DEFAULT_DIESEL_AVG = {
     "DE": 1.66,
     "BE": 1.79, "NL": 1.86, "LU": 1.45, "IE": 1.77,
     "CZ": 1.47, "SK": 1.51, "HU": 1.63, "SE": 1.72,
+    "DK": 1.85, "PL": 1.45, "SI": 1.50, "HR": 1.46, "NO": 1.88,
 }
 
 
