@@ -202,7 +202,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v2.2</span>
+    <span class="ver">v2.3</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -212,7 +212,7 @@
   <nav class="seg cseg" id="cseg" role="group" aria-label="Countries"></nav>
   <button class="btn-ghost" id="resetBtn">Reset</button>
   <div class="head-right">
-    <span class="snapshot" id="snapshot">Sample snapshot · Mon 29 Jun 2026</span>
+    <span class="snapshot" id="snapshot">Loading live data…</span>
     <button class="btn-ghost" id="srcBtn">Sources</button>
   </div>
 </header>
@@ -248,7 +248,7 @@
     <div class="lg" id="lgGrayRow"><span class="sw" style="background:var(--gray)"></span><span id="lgGray">No published price</span></div>
     <div class="cap" id="legendCap"></div>
   </div>
-  <div class="sample-tag">⚠ Sample data — live pipeline pending</div>
+  <div class="sample-tag" style="display:none"></div>
   <button class="src-link" id="srcBtn2">Sources &amp; methodology →</button>
 </aside>
 
@@ -281,7 +281,7 @@
     </ul>
 
     <h4>Current status</h4>
-    <p>This prototype runs on <b>generated sample data</b> shaped like the real feeds: national price levels, motorway premiums, low-cost brands (E.Leclerc, Ballenoil, Jet, pompe bianche…), and cross-border differences are all modelled so the interface behaves realistically. Next step: a weekly GitHub Actions pipeline replaces the samples with the live sources above, refreshing every Monday 06:00 UTC.</p>
+    <p>This tool shows <b>live data from official sources</b>: government fuel-price feeds for Spain, France, Italy, the UK and Austria (per-station Diesel and HVO), the European Commission Weekly Oil Bulletin for official national diesel averages where no station feed exists, and Open Charge Map for EV chargers. It refreshes automatically every Monday 06:00 UTC. No sample or estimated station data is shown.</p>
   </div>
 </div>
 
@@ -290,7 +290,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='2.2';
+var APP_VER='2.3';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -393,89 +393,8 @@ var EV_OPS={
  IT:[{n:'Enel',o:0.02,w:7},{n:'Be Charge',o:0.03,w:4},{n:'Free To X',o:0.05,w:3},{n:'A2A',o:0.01,w:3}]
 };
 
-/* ---------------- sample data generation ---------------- */
+/* ---------------- live data only — sample/fake generation removed ---------------- */
 var stations={diesel:[],hvo:[],ev:[]};
-var cityByName={};
-CITIES.forEach(function(c){cityByName[c[0]]=c;});
-
-function regionField(lat,lng){
- return Math.sin(lat*0.55+1.7)*0.5+Math.cos(lng*0.45-0.6)*0.5+Math.sin((lat*0.9+lng*0.6)*0.35+2.1)*0.4;
-}
-function dieselPrice(cc,lat,lng,w,mwy,brandOff){
- var C=COUNTRY[cc];
- var p=C.base + regionField(lat,lng)*C.regAmp + brandOff - (0.004*w + rand()*0.004);
- if(mwy) p += C.mwy[0] + rand()*(C.mwy[1]-C.mwy[0]);
- p += gauss()*0.020;
- return clamp(Math.round(p*1000)/1000, C.base-0.14, C.base+0.32);
-}
-function addStation(lat,lng,cc,b,name,mwy,road,w){
- var p=dieselPrice(cc,lat,lng,w||1,mwy,b.o);
- stations.diesel.push({lat:lat,lng:lng,cc:cc,brand:b.n,name:name,p:p,mwy:mwy,road:road||null});
- var C=COUNTRY[cc];
- var prob=C.hvoShare*(C.hvoBrands.indexOf(b.n)>=0?3.4:0.35)*(mwy?1.6:1);
- if(rand()<clamp(prob,0,0.85)){
-  var hp=rand()<0.15?null:Math.round((p+C.hvoPrem[0]+rand()*(C.hvoPrem[1]-C.hvoPrem[0])+gauss()*0.02)*1000)/1000;
-  stations.hvo.push({lat:lat,lng:lng,cc:cc,brand:b.n,name:name+' (HVO100)',p:hp,mwy:mwy,road:road||null});
- }
-}
-CITIES.forEach(function(c){
- var name=c[0],cc=c[1],lat=c[2],lng=c[3],w=c[4];
- var cosl=Math.cos(lat*Math.PI/180);
- var n=Math.round((7+w*8)*(0.85+rand()*0.3));
- var i,s,la,lo,b;
- for(i=0;i<n;i++){
-  s=0.03*(1+w*0.4);
-  la=lat+gauss()*s; lo=lng+gauss()*s/cosl;
-  b=pickW(BRANDS[cc]);
-  addStation(la,lo,cc,b,b.n+' \u00b7 '+name,false,null,w);
- }
- var r=3+Math.floor(rand()*4);
- for(i=0;i<r;i++){
-  la=lat+gauss()*0.30; lo=lng+gauss()*0.30/cosl;
-  b=pickW(BRANDS[cc]);
-  addStation(la,lo,cc,b,b.n+' \u00b7 nr. '+name,false,null,1);
- }
-});
-CORRIDORS.forEach(function(cor){
- var A=cityByName[cor[0]],B=cityByName[cor[1]],road=cor[2];
- var n=8+Math.floor(rand()*8);
- for(var i=0;i<n;i++){
-  var t=0.06+rand()*0.88;
-  var la=A[2]+(B[2]-A[2])*t+gauss()*0.02;
-  var lo=A[3]+(B[3]-A[3])*t+gauss()*0.02;
-  var cc=t<0.5?A[1]:B[1];
-  var b=pickW(BRANDS[cc]);
-  addStation(la,lo,cc,b,b.n+' \u00b7 '+road,true,road,1);
- }
-});
-function evPrice(base,off){return Math.round(clamp(base+off+gauss()*0.03,0.25,0.95)*100)/100;}
-function addCharger(lat,lng,cc,urbanName,road){
- var op=pickW(EV_OPS[cc].concat(EV_PAN));
- var ty=road?EV_TYPES[2]:pickW(EV_TYPES);
- if(op.hp)ty=EV_TYPES[2];
- var kw=ty.kw||[150,200,250,300,350][Math.floor(rand()*5)];
- if(op.n==='Tesla Supercharger')kw=250;
- if(op.n==='Ionity')kw=350;
- var p=(rand()<(road?0.15:0.30))?null:evPrice(road?0.72:ty.base,op.o);
- var plugs=ty.t==='AC'?2+Math.floor(rand()*3):(op.n==='Tesla Supercharger'?8+Math.floor(rand()*13):2+Math.floor(rand()*(road?9:5)));
- stations.ev.push({lat:lat,lng:lng,cc:cc,brand:op.n,name:op.n+' \u00b7 '+(road||urbanName),p:p,mwy:!!road,road:road||null,kw:kw,plugs:plugs,ty:ty.t});
-}
-CITIES.forEach(function(c){
- var n=2+c[4]*3+Math.floor(rand()*3);
- var cosl=Math.cos(c[2]*Math.PI/180);
- for(var i=0;i<n;i++){
-  var s=0.03*(1+c[4]*0.4);
-  addCharger(c[2]+gauss()*s,c[3]+gauss()*s/cosl,c[1],c[0],null);
- }
-});
-CORRIDORS.forEach(function(cor){
- var A=cityByName[cor[0]],B=cityByName[cor[1]];
- var n=2+Math.floor(rand()*3);
- for(var i=0;i<n;i++){
-  var t=0.1+rand()*0.8;
-  addCharger(A[2]+(B[2]-A[2])*t+gauss()*0.015,A[3]+(B[3]-A[3])*t+gauss()*0.015,t<0.5?A[1]:B[1],null,cor[2]);
- }
-});
 
 /* national averages per fuel per country (priced entries only) */
 var AVG={};
@@ -603,7 +522,7 @@ function popupHtml(s,mode){
   var d=relDelta(s)*100;
   html+='<div class="row">vs national avg: '+(d>=0?'+':'')+d.toFixed(1)+'%</div>';
  }
- html+='<div class="foot">Updated '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'sample data')+'</div></div>';
+ html+='<div class="foot">Updated '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'no live data for this fuel')+'</div></div>';
  return html;
 }
 
@@ -793,7 +712,7 @@ function updateChipCounts(){
 function zeroMsg(cc){
  if(currentFuel==='diesel'&&cc==='DE')return 'Germany: diesel appears once the Tankerk\u00f6nig API key is added';
  if(currentFuel==='hvo'&&(cc==='FR'||cc==='DE'))return COUNTRY[cc].name+': the official feed does not publish HVO100 prices';
- if(currentFuel==='ev')return COUNTRY[cc].name+': EV is sample data until the Open Charge Map key is added';
+ if(currentFuel==='ev')return COUNTRY[cc].name+': no chargers listed here in Open Charge Map';
  return COUNTRY[cc].name+': no '+META[currentFuel].label+' data in this snapshot';
 }
 
@@ -855,31 +774,24 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal()
 function refreshBadges(){
  var names={diesel:'Diesel',hvo:'HVO100',ev:'EV'};
  var live=Object.keys(LIVE).filter(function(k){return LIVE[k];});
- var sample=Object.keys(LIVE).filter(function(k){return !LIVE[k];});
  var tag=document.querySelector('.sample-tag');
- if(live.length===0){el('snapshot').textContent='Sample snapshot \u00b7 '+SNAP;return;}
+ if(tag)tag.style.display='none';
+ if(live.length===0){el('snapshot').textContent='No live data loaded';return;}
  var liveTxt=live.map(function(k){return names[k];}).join(' + ');
- var sampleTxt=sample.map(function(k){return names[k];}).join(' + ');
  el('snapshot').textContent='Snapshot '+SNAP+' \u00b7 '+liveTxt+': live';
- if(tag){
-  if(sampleTxt){tag.textContent='\u26a0 '+liveTxt+': LIVE \u00b7 '+sampleTxt+': sample';}
-  else{tag.textContent='\u2713 Live data \u00b7 refreshed weekly';tag.style.background='#e5f6ec';tag.style.borderColor='#bfe6cd';tag.style.color='#0b6b38';}
- }
 }
 function applyPayload(pl){
  try{
   var f=pl.fuels||{},any=false;
   ['diesel','hvo','ev'].forEach(function(k){
-   var fu=f[k];
-   if(fu&&fu.live&&fu.stations&&fu.stations.length){
-    stations[k]=fu.stations.map(function(a){
+   var fu=f[k]||{};
+   var rows=(fu.stations||[]).map(function(a){
      return{lat:a[0],lng:a[1],cc:a[2],brand:a[3],name:a[4],p:(a[5]==null?null:a[5]),mwy:!!a[6],road:null,kw:a[7]||null,plugs:a[8]||null,ty:a[9]||null};
-    });
-    stations[k]=stations[k].filter(function(o){return !!COUNTRY[o.cc];});
-    LIVE[k]=true;any=true;
-   }
+    }).filter(function(o){return !!COUNTRY[o.cc];});
+   stations[k]=rows;                 /* real data only; empty if none - never fabricated */
+   LIVE[k]=!!fu.live;
+   if(rows.length)any=true;
   });
-  if(!any)return;
   Object.keys(stations).forEach(function(fk){
    AVG[fk]={};var sums={},cnt={};
    stations[fk].forEach(function(s){if(s.p==null)return;sums[s.cc]=(sums[s.cc]||0)+s.p;cnt[s.cc]=(cnt[s.cc]||0)+1;});
@@ -890,7 +802,7 @@ function applyPayload(pl){
   refreshBadges();
   refresh();
   updateChipCounts();
- }catch(e){/* keep sample data */}
+ }catch(e){console.error('live data parse failed',e);}
 }
 
 map.on('moveend',debounce(refresh,120));
@@ -899,7 +811,7 @@ updateChipCounts();
 fetch('data/prices-latest.json',{cache:'no-store'})
  .then(function(r){if(!r.ok)throw new Error('no data file');return r.json();})
  .then(applyPayload)
- .catch(function(){/* sample mode */});
+ .catch(function(){var t=document.querySelector('.sample-tag');if(t){t.style.display='flex';t.textContent='\u26a0 Could not load live data \u2014 check connection and refresh';}var s=el('snapshot');if(s)s.textContent='Data unavailable';});
 })();
 /*APP-JS-END*/
 </script>
