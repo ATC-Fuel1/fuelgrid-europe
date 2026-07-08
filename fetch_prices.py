@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.17"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.18"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -517,9 +517,9 @@ def fetch_ev():
     out = []
     for cc in EV_CCS:
         try:
-            url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=4000"
+            url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=100000"
                    f"&compact=true&verbose=false&key={key}")
-            pois = json.loads(http_get(url, 120).decode("utf-8"))
+            pois = json.loads(http_get(url, 180).decode("utf-8"))
             n0 = len(out)
             for p in pois:
                 ai = p.get("AddressInfo") or {}
