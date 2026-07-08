@@ -19,6 +19,7 @@ jobs:
       - name: Fetch latest prices
         env:
           TANKERKOENIG_API_KEY: ${{ secrets.TANKERKOENIG_API_KEY }}
+          OCM_API_KEY: ${{ secrets.OCM_API_KEY }}
         run: python fetch_prices.py
       - name: Commit updated data
         run: |
