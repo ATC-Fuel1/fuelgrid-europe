@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.15"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.17"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -60,6 +60,8 @@ IT_BASES = [
 IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
 IT_PREZZI_FILE = "prezzo_alle_8.csv"
 OCM_URL = "https://api.openchargemap.io/v3/poi"
+EV_CCS = ["ES", "FR", "DE", "IT", "GB", "AT", "BE", "NL", "LU", "IE",
+          "CZ", "SK", "HU", "SE"]          # all countries, EV via Open Charge Map
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 EU_BULLETIN_URLS = [
     "https://ec.europa.eu/energy/observatory/reports/latest_prices_raw_data.xlsx",
@@ -225,24 +227,34 @@ _TK_VARIANTS = [
     "api-version=6.0&download=true&resolveLfs=true",
     "$format=text&api-version=7.0",
 ]
+_tk_good = [None]        # remember the variant that works, reuse it
 
 
 def _tk_dump(path, expect):
-    """Fetch a raw CSV file from the Azure DevOps repo. Azure only returns
-    raw bytes with the right query param, so try the known variants and
-    verify the response actually contains the expected CSV header."""
+    """Fetch a raw CSV file from the Azure repo. Azure only returns raw
+    bytes with the right query param, so try the variants (fast: 15s, no
+    retries) and verify the response is really the CSV we asked for. Once
+    one variant works, reuse it. Distinguish 'server answered but not CSV'
+    (wrong URL scheme -> give up) from 'HTTP error' (file may not exist)."""
+    order = ([_tk_good[0]] + [q for q in _TK_VARIANTS if q != _tk_good[0]]
+             if _tk_good[0] else _TK_VARIANTS)
+    non_csv = False
     last = ""
-    for q in _TK_VARIANTS:
-        url = f"{TK_DUMP_BASE}?path={path}&{q}"
+    for q in order:
         try:
-            txt = http_get(url, 120).decode("utf-8", errors="replace")
+            txt = http_get(f"{TK_DUMP_BASE}?path={path}&{q}", 15,
+                           tries=1).decode("utf-8", errors="replace")
         except Exception as exc:
             last = f"HTTP {exc}"
             continue
         if expect in txt[:600].lower():
+            _tk_good[0] = q
             return txt
-        last = "got non-CSV: " + txt[:90].replace("\n", " ").replace("\r", " ")
-    raise RuntimeError(last or "no response")
+        non_csv = True
+        last = "non-CSV: " + txt[:80].replace("\n", " ").replace("\r", " ")
+    err = RuntimeError(last or "no response")
+    err.non_csv = non_csv      # signal: server responded but wrong content
+    raise err
 
 
 def _tk_stations(day):
@@ -268,7 +280,7 @@ def fetch_de_dump():
     that, unlike the live API, does not block cloud runners. Join the
     stations dump with the prices dump on the station UUID."""
     stations = None
-    for back in range(8):                      # today, then walk back a week
+    for back in range(3):                       # today + 2 days back only
         day = dt.date.today() - dt.timedelta(days=back)
         try:
             stations = _tk_stations(day)
@@ -278,9 +290,13 @@ def fetch_de_dump():
         except Exception as exc:
             print(f"DE dump: stations {day} unavailable ({exc})")
             stations = None
+            if getattr(exc, "non_csv", False):
+                print("DE dump: Azure returned a page, not the CSV - dump URL "
+                      "scheme not working, skipping dump this run")
+                return []       # wrong scheme; don't grind other days
     if not stations:
         return []
-    for back in range(8):
+    for back in range(3):
         day = dt.date.today() - dt.timedelta(days=back)
         try:
             txt = _tk_dump(f"/prices/{day:%Y/%m}/{day:%Y-%m-%d}-prices.csv",
@@ -499,9 +515,9 @@ def fetch_ev():
               "(free key at openchargemap.org)")
         return []
     out = []
-    for cc in ("ES", "FR", "DE", "IT"):
+    for cc in EV_CCS:
         try:
-            url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=8000"
+            url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=4000"
                    f"&compact=true&verbose=false&key={key}")
             pois = json.loads(http_get(url, 120).decode("utf-8"))
             n0 = len(out)
@@ -526,9 +542,12 @@ def fetch_ev():
                             op, name[:60], _parse_ev_cost(p.get("UsageCost")),
                             0, int(kw) or None, max(len(conns), 1), ty])
             print(f"EV {cc}: {len(out) - n0} chargers")
+            time.sleep(1.0)
         except Exception as exc:
             print(f"EV {cc}: failed - {exc}")
-    print(f"EV: {len(out)} chargers total")
+    from collections import Counter as _C
+    print(f"EV: {len(out)} chargers total across "
+          f"{len(_C(r[2] for r in out))} countries")
     return out
 
 
