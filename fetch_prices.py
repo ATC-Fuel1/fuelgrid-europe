@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.20"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.21"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -61,7 +61,7 @@ IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
 IT_PREZZI_FILE = "prezzo_alle_8.csv"
 OCM_URL = "https://api.openchargemap.io/v3/poi"
 EV_CCS = ["ES", "FR", "DE", "IT", "GB", "AT", "BE", "NL", "LU", "IE",
-          "CZ", "SK", "HU", "SE", "DK", "PL", "SI", "HR", "NO"]          # EV via Open Charge Map
+          "CZ", "SK", "HU", "SE", "DK", "PL", "SI", "HR", "NO", "CH"]     # EV via Open Charge Map
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 EU_BULLETIN_URLS = [
     "https://ec.europa.eu/energy/observatory/reports/latest_prices_raw_data.xlsx",
