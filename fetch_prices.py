@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.22"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.23"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -505,7 +505,9 @@ def _parse_ev_cost(s):
     if not m:
         return None
     v = to_f(m.group(1))
-    return round(v, 2) if v is not None and 0.05 < v < 2.0 else None
+    # real European EV is €0.20-1.00/kWh; reject values above 1.20 as
+    # local-currency (NOK/PLN) or per-session/minute artifacts, not €/kWh
+    return round(v, 2) if v is not None and 0.05 < v <= 1.20 else None
 
 
 def _ev_pull(cc, key, out):

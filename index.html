@@ -205,7 +205,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v2.6</span>
+    <span class="ver">v2.7</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -310,7 +310,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='2.6';
+var APP_VER='2.7';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -852,7 +852,7 @@ function applyPayload(pl){
 map.on('moveend',debounce(refresh,120));
 refresh();
 updateChipCounts();
-fetch('data/prices-latest.json',{cache:'no-store'})
+fetch('data/prices-latest.json?v='+Date.now(),{cache:'no-store'})
  .then(function(r){if(!r.ok)throw new Error('no data file');return r.json();})
  .then(applyPayload)
  .catch(function(){var t=document.querySelector('.sample-tag');if(t){t.style.display='flex';t.textContent='\u26a0 Could not load live data \u2014 check connection and refresh';}var s=el('snapshot');if(s)s.textContent='Data unavailable';});
