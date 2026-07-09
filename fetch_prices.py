@@ -39,7 +39,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.21"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.22"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -508,6 +508,36 @@ def _parse_ev_cost(s):
     return round(v, 2) if v is not None and 0.05 < v < 2.0 else None
 
 
+def _ev_pull(cc, key, out):
+    """Fetch one country's chargers from Open Charge Map into `out`.
+    Returns the number of chargers added."""
+    url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=100000"
+           f"&compact=true&verbose=false&key={key}")
+    pois = json.loads(http_get(url, 120, tries=2).decode("utf-8"))
+    n0 = len(out)
+    for p in pois:
+        ai = p.get("AddressInfo") or {}
+        lat, lng = ai.get("Latitude"), ai.get("Longitude")
+        if lat is None or lng is None:
+            continue
+        conns = p.get("Connections") or []
+        kw = 0.0
+        for c in conns:
+            try:
+                kw = max(kw, float(c.get("PowerKW") or 0))
+            except (TypeError, ValueError):
+                pass
+        op = ((p.get("OperatorInfo") or {}).get("Title")
+              or "Operator n/a").strip()[:30]
+        town = (ai.get("Town") or "").strip().title()
+        name = f"{op} \u00b7 {town}" if town else op
+        ty = "HPC" if kw >= 100 else ("DC" if kw >= 43 else "AC")
+        out.append([round(float(lat), 5), round(float(lng), 5), cc,
+                    op, name[:60], _parse_ev_cost(p.get("UsageCost")),
+                    0, int(kw) or None, max(len(conns), 1), ty])
+    return len(out) - n0
+
+
 def fetch_ev():
     key = os.environ.get("OCM_API_KEY", "").strip()
     if not key:
@@ -515,36 +545,28 @@ def fetch_ev():
               "(free key at openchargemap.org)")
         return []
     out = []
+    counts = {}
     for cc in EV_CCS:
         try:
-            url = (f"{OCM_URL}?output=json&countrycode={cc}&maxresults=100000"
-                   f"&compact=true&verbose=false&key={key}")
-            pois = json.loads(http_get(url, 180).decode("utf-8"))
-            n0 = len(out)
-            for p in pois:
-                ai = p.get("AddressInfo") or {}
-                lat, lng = ai.get("Latitude"), ai.get("Longitude")
-                if lat is None or lng is None:
-                    continue
-                conns = p.get("Connections") or []
-                kw = 0.0
-                for c in conns:
-                    try:
-                        kw = max(kw, float(c.get("PowerKW") or 0))
-                    except (TypeError, ValueError):
-                        pass
-                op = ((p.get("OperatorInfo") or {}).get("Title")
-                      or "Operator n/a").strip()[:30]
-                town = (ai.get("Town") or "").strip().title()
-                name = f"{op} \u00b7 {town}" if town else op
-                ty = "HPC" if kw >= 100 else ("DC" if kw >= 43 else "AC")
-                out.append([round(float(lat), 5), round(float(lng), 5), cc,
-                            op, name[:60], _parse_ev_cost(p.get("UsageCost")),
-                            0, int(kw) or None, max(len(conns), 1), ty])
-            print(f"EV {cc}: {len(out) - n0} chargers")
-            time.sleep(1.0)
+            counts[cc] = _ev_pull(cc, key, out)
+            print(f"EV {cc}: {counts[cc]} chargers")
         except Exception as exc:
+            counts[cc] = 0
             print(f"EV {cc}: failed - {exc}")
+        time.sleep(1.0)
+    # retry any country that came back empty - usually a transient throttle
+    # or timeout, most often on the final calls of a long run (e.g. CH last)
+    zeros = [cc for cc in EV_CCS if counts.get(cc, 0) == 0]
+    if zeros:
+        print(f"EV: retrying empty countries {zeros}")
+        time.sleep(5.0)
+        for cc in zeros:
+            try:
+                counts[cc] = _ev_pull(cc, key, out)
+                print(f"EV {cc} (retry): {counts[cc]} chargers")
+            except Exception as exc:
+                print(f"EV {cc} (retry): failed - {exc}")
+            time.sleep(2.0)
     from collections import Counter as _C
     print(f"EV: {len(out)} chargers total across "
           f"{len(_C(r[2] for r in out))} countries")
