@@ -30,6 +30,7 @@ import os
 import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
@@ -39,7 +40,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.23"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.25"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -322,10 +323,39 @@ def fetch_de_dump():
     return []
 
 
+DE_MANUAL = "data/manual/de_prices.json"
+
+
+def load_de_manual():
+    """Germany prices pushed by the local PC fetcher (fetch_de_local.py).
+    Used only if fresh (<= 8 days old)."""
+    try:
+        with open(DE_MANUAL, encoding="utf-8") as f:
+            j = json.load(f)
+        gen = dt.datetime.fromisoformat(j["generated"])
+        age = (dt.datetime.now(dt.timezone.utc) - gen).days
+        rows = j.get("rows") or []
+        if age > 8:
+            print(f"DE local file: {len(rows)} stations but {age} days old - "
+                  "ignoring (run fetch_de_local.py on the office PC)")
+            return []
+        if rows:
+            print(f"DE local file: {len(rows)} stations, {age} days old - OK")
+        return rows
+    except FileNotFoundError:
+        return []
+    except Exception as exc:
+        print(f"DE local file: unreadable - {exc}")
+        return []
+
+
 def fetch_de():
     """Germany: pull the official daily CSV dump first (static host, no
     rate limit, ~15k stations in two files); if it yields nothing this
     run, fall back to the live API (which may be blocked/throttled)."""
+    rows = load_de_manual()
+    if rows:
+        return rows
     try:
         rows = fetch_de_dump()
     except Exception as exc:
@@ -508,6 +538,58 @@ def _parse_ev_cost(s):
     # real European EV is €0.20-1.00/kWh; reject values above 1.20 as
     # local-currency (NOK/PLN) or per-session/minute artifacts, not €/kWh
     return round(v, 2) if v is not None and 0.05 < v <= 1.20 else None
+
+
+OSM_GAP_CCS = ["NL", "IE", "DK", "PL", "SE", "NO", "CH", "CZ", "SK", "HU"]
+OVERPASS_HOSTS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://lz4.overpass-api.de/api/interpreter",
+]
+
+
+def fetch_osm_locations():
+    """Fuel-station LOCATIONS (no price) from OpenStreetMap via Overpass, for
+    countries that publish no per-station price feed. Rendered as grey
+    'location only' markers. Coordinates are community-maintained (OSM)."""
+    out = []
+    for cc in OSM_GAP_CCS:
+        query = ('[out:json][timeout:120];'
+                 f'area["ISO3166-1"="{cc}"]["admin_level"="2"]->.a;'
+                 '(node["amenity"="fuel"](area.a);'
+                 'way["amenity"="fuel"](area.a););'
+                 'out center tags;')
+        got, last = None, ""
+        for host in OVERPASS_HOSTS:
+            try:
+                url = host + "?data=" + urllib.parse.quote(query)
+                got = json.loads(http_get(url, 150, tries=1).decode("utf-8"))
+                break
+            except Exception as exc:
+                last = str(exc)
+        if got is None:
+            print(f"OSM {cc}: failed - {last}")
+            continue
+        n0 = len(out)
+        for el in got.get("elements", []):
+            lat, lon = el.get("lat"), el.get("lon")
+            if lat is None:
+                ctr = el.get("center") or {}
+                lat, lon = ctr.get("lat"), ctr.get("lon")
+            if lat is None or lon is None:
+                continue
+            t = el.get("tags") or {}
+            if t.get("fuel:diesel") == "no":       # skip petrol-only sites
+                continue
+            brand = (t.get("brand") or t.get("operator")
+                     or t.get("name") or "Station").strip()[:30]
+            name = (t.get("name") or brand).strip()[:60]
+            out.append([round(float(lat), 5), round(float(lon), 5), cc,
+                        brand, name, None, 0])
+        print(f"OSM {cc}: {len(out) - n0} station locations")
+        time.sleep(2.0)
+    print(f"OSM: {len(out)} location-only diesel stations total")
+    return out
 
 
 def _ev_pull(cc, key, out):
@@ -1008,6 +1090,11 @@ def main():
     for cc in ("ES", "FR", "DE", "IT", "GB", "AT"):
         if by_cc.get(cc, 0) == 0:
             print(f"WARNING: no fresh diesel data for {cc} this run")
+
+    try:
+        diesel += fetch_osm_locations()
+    except Exception as exc:
+        print(f"OSM: FAILED - {exc}", file=sys.stderr)
 
     ev = []
     try:
