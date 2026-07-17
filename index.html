@@ -205,7 +205,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v2.9</span>
+    <span class="ver">v3.0</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -281,21 +281,33 @@
       <li>⚪ <b>Location only</b> — grey dot, no price (OpenStreetMap), for diesel in countries with no public price feed. Shows <i>where</i> to fuel, not the price.</li>
     </ul>
 
-    <h4>Diesel &amp; HVO — per station (government feeds)</h4>
+    <h4>Sources by country — all 21</h4>
+    <p><b>EV for every country:</b> Open Charge Map (community) — see the EV section below. Diesel and HVO100 per country:</p>
     <ul>
-      <li>🇪🇸 <b>Spain</b> — MITECO / Geoportal Gasolineras — Diesel + HVO <span class="tag ok">Live · per station</span></li>
-      <li>🇫🇷 <b>France</b> — prix-carburants.gouv.fr — Diesel <span class="tag ok">Live · per station</span></li>
-      <li>🇮🇹 <b>Italy</b> — Osservaprezzi Carburanti (MIMIT) — Diesel + HVO <span class="tag ok">Live · per station</span></li>
-      <li>🇬🇧 <b>United Kingdom</b> — CMA Fuel Finder retailer feeds — Diesel, £→€ at ECB rate <span class="tag ok">Live · per station</span></li>
-      <li>🇦🇹 <b>Austria</b> — E-Control — Diesel; by law only the cheapest station per area carries a published price, so counts are partial <span class="tag part">Live · partial</span></li>
-      <li>🇩🇪 <b>Germany</b> — Tankerkönig / MTS-K (official market-transparency data) — Diesel; fetched weekly from an ATC computer because the API blocks cloud servers. Coverage is partial until the bulk-file method is enabled <span class="tag part">Live · partial</span></li>
+      <li>🇦🇹 <b>Austria</b> — <b>Diesel:</b> E-Control API — live per-station; by law only the cheapest stations per area publish a price, so coverage is partial and varies by run. <b>HVO100:</b> not published.</li>
+      <li>🇧🇪 <b>Belgium</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average (dashed bubble) + OpenStreetMap station locations (grey dots). <b>HVO100:</b> not published.</li>
+      <li>🇭🇷 <b>Croatia</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇨🇿 <b>Czechia</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇩🇰 <b>Denmark</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇫🇷 <b>France</b> — <b>Diesel:</b> prix-carburants.gouv.fr (roulez-éco) — official live per-station. <b>HVO100:</b> not published.</li>
+      <li>🇩🇪 <b>Germany</b> — <b>Diesel:</b> Tankerkönig / MTS-K official market-transparency data — live per-station, fetched weekly from an ATC computer (the API blocks cloud servers); coverage partial until the bulk file is enabled. EU Bulletin average as fallback. <b>HVO100:</b> not published.</li>
+      <li>🇭🇺 <b>Hungary</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇮🇪 <b>Ireland</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇮🇹 <b>Italy</b> — <b>Diesel:</b> Osservaprezzi Carburanti (MIMIT) — official live per-station. <b>HVO100:</b> official live per-station (same feed).</li>
+      <li>🇱🇺 <b>Luxembourg</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average (prices are state-regulated) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇳🇱 <b>Netherlands</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇳🇴 <b>Norway</b> — <b>Diesel:</b> indicative national average (pinned; Norway is outside the EU bulletin) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇵🇱 <b>Poland</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇷🇴 <b>Romania</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇸🇰 <b>Slovakia</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇸🇮 <b>Slovenia</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average (max prices state-regulated off-motorway) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇪🇸 <b>Spain</b> — <b>Diesel:</b> MITECO / Geoportal Gasolineras — official live per-station. <b>HVO100:</b> official live per-station (same feed).</li>
+      <li>🇸🇪 <b>Sweden</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇨🇭 <b>Switzerland</b> — <b>Diesel:</b> indicative national average (pinned; outside the EU bulletin) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇬🇧 <b>United Kingdom</b> — <b>Diesel:</b> CMA Fuel Finder retailer feeds — official live per-station, £→€ at the daily ECB rate. <b>HVO100:</b> not published.</li>
     </ul>
-
-    <h4>Diesel national average — where no station feed exists</h4>
-    <p>🇪🇺 <b>EU Weekly Oil Bulletin</b> (European Commission) — official weekly national diesel average, converted to € at ECB rates, shown as a dashed bubble for Belgium, Netherlands, Luxembourg, Ireland, Czechia, Slovakia, Hungary, Sweden, Denmark, Poland, Slovenia, Croatia, Norway, Switzerland and Romania when no station-level price exists for that fuel there. Indicative baseline; any value can be overridden in data/manual/national_averages.csv.</p>
-
-    <h4>Diesel station locations — no price (OpenStreetMap)</h4>
-    <p>🗺 <b>OpenStreetMap</b> (Overpass API) — fuel-station <b>locations only</b>, shown as grey dots with no price, for Belgium, Netherlands, Luxembourg, Ireland, Czechia, Slovakia, Hungary, Sweden, Denmark, Poland, Slovenia, Croatia, Norway, Switzerland and Romania — countries with no public per-station price feed. Community-maintained coordinates: they tell your drivers where stations are, not the price. Refreshed weekly.</p>
+    <h4>Methodology &amp; updates</h4>
+    <p>Everything refreshes automatically every <b>Monday 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are official weekly figures (or pinned indicative values for Norway and Switzerland), not station-level prices.</p>
 
     <h4>EV charging — all countries (community data)</h4>
     <p><b>Where it comes from:</b> ⚡ <b>Open Charge Map</b> (openchargemap.org), the largest open registry of charge points, covering all 21 countries in this tool. For every charger it gives location, power rating (kW), operator, and connector type (AC / DC / HPC).</p>
@@ -314,7 +326,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='2.9';
+var APP_VER='3.0';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -698,11 +710,8 @@ function refreshCore(){
   el('legendCap').textContent='Colours re-rank as you pan or zoom \u2014 always relative to what is on screen.';
  }
  var grayRow=el('lgGrayRow');
- if(currentFuel==='diesel'){grayRow.style.display='none';}
- else{
-  grayRow.style.display='flex';
-  el('lgGray').textContent=currentFuel==='ev'?'Tariff varies by operator / plan':'Price not published \u2014 ask on site';
- }
+ grayRow.style.display='flex';
+ el('lgGray').textContent=currentFuel==='ev'?'Tariff varies by operator / plan':(currentFuel==='diesel'?'Location only \u2014 no published price':'Price not published \u2014 ask on site');
 
  /* national table */
  el('natTitle').textContent='National average \u00b7 '+m.label;
@@ -710,7 +719,12 @@ function refreshCore(){
  CC_ORDER.slice().sort(function(x,y){return COUNTRY[x].name.localeCompare(COUNTRY[y].name);}).forEach(function(cc){
   var a=AVG[currentFuel][cc],man=false;
   if(!a&&MANUAL[currentFuel]&&MANUAL[currentFuel][cc]){a=MANUAL[currentFuel][cc];man=true;}
-  rows+='<div class="kv" style="opacity:'+(COUNTRY_ON[cc]?'1':'.35')+'"><span class="k">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><b>'+(a?(man?'\u2248 ':'')+'\u20ac'+fmtP(a)+' '+m.unit.slice(1):'\u2013')+'</b></div>';
+  var val;
+  if(a){val=(man?'\u2248 ':'')+'\u20ac'+fmtP(a)+' '+m.unit.slice(1);}
+  else if(currentFuel==='ev'){val='<span style="color:var(--muted);font-weight:500;font-size:11px">plan-based</span>';}
+  else if(currentFuel==='hvo'){val='<span style="color:var(--muted);font-weight:500;font-size:11px">not sold / no data</span>';}
+  else{val='\u2013';}
+  rows+='<div class="kv" style="opacity:'+(COUNTRY_ON[cc]?'1':'.35')+'"><span class="k">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><b>'+val+'</b></div>';
  });
  el('natTable').innerHTML=rows;
 }
