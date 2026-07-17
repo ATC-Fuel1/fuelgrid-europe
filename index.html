@@ -98,7 +98,7 @@
   .agg.s-amber{background:rgba(245,165,36,.95)}
   .agg.s-red{background:rgba(229,72,77,.93)}
   .agg.s-gray{background:rgba(154,163,178,.93)}
-  .agg.s-avg{background:rgba(59,76,104,.96);border-style:dashed;border-width:2.5px}
+  .agg.s-avg{background:rgba(59,76,104,.97);border-style:dashed;border-width:3px}
 
   /* Popups */
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
@@ -205,7 +205,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.1</span>
+    <span class="ver">v3.2</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -326,7 +326,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.1';
+var APP_VER='3.2';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -695,8 +695,8 @@ function refreshCore(){
    if(!COUNTRY_ON[cc]||pricedCC[cc])return;
    var mv=MANUAL[currentFuel]&&MANUAL[currentFuel][cc],ct=COUNTRY[cc].ctr;
    if(!mv||!ct)return;
-   var dm=44,fs=13.5;
-   var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],html:'<div class="agg s-avg" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+mv.toFixed(2)+'</div>'}),zIndexOffset:400});
+   var dm=60,fs=16.5;
+   var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],html:'<div class="agg s-avg" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+mv.toFixed(2)+'</div>'}),zIndexOffset:900});
    mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official national average \u20ac'+mv.toFixed(2)+' '+META[currentFuel].unit.slice(1)+' \u00b7 station locations shown in grey; per-station prices not published',{direction:'top',offset:[0,-dm/2]});
    aggLayer.addLayer(mk);
   });
