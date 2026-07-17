@@ -40,7 +40,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.27"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.28"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -590,25 +590,50 @@ def _osm_pull(cc, out):
     return n
 
 
+OSM_CACHE = "data/manual/osm_cache.json"
+
+
 def fetch_osm_locations():
-    """Fuel-station LOCATIONS (no price) from OpenStreetMap via Overpass, for
-    the 14 countries with no per-station price feed. Grey 'location only'
-    markers. Overpass is flaky on big countries, so empties are retried."""
+    """Fuel-station LOCATIONS (no price) from OpenStreetMap via Overpass.
+    Overpass rate-limits shared cloud servers (HTTP 406/429), so results
+    are CACHED in the repo: each run refreshes what it can and falls back
+    to the cached locations for any country that gets rate-limited.
+    Locations change rarely, so cached data stays valid."""
+    try:
+        with open(OSM_CACHE, encoding="utf-8") as f:
+            cache = json.load(f)
+    except Exception:
+        cache = {}
     out = []
-    counts = {}
+    fresh = {}
     for cc in OSM_GAP_CCS:
-        counts[cc] = _osm_pull(cc, out)
-        time.sleep(2.0)
-    zeros = [cc for cc in OSM_GAP_CCS if counts.get(cc, 0) == 0]
-    if zeros:
-        print(f"OSM: retrying empty countries {zeros}")
-        time.sleep(10.0)
-        for cc in zeros:
-            counts[cc] = _osm_pull(cc, out)
-            time.sleep(3.0)
-    ok = sum(1 for v in counts.values() if v)
+        rows = []
+        n = _osm_pull(cc, rows)
+        if n:
+            fresh[cc] = rows
+        time.sleep(8.0)                      # Overpass fair-use spacing
+    merged = {}
+    for cc in OSM_GAP_CCS:
+        if cc in fresh:
+            merged[cc] = fresh[cc]
+        elif cache.get(cc):
+            merged[cc] = cache[cc]
+            print(f"OSM {cc}: rate-limited this run - using "
+                  f"{len(cache[cc])} cached locations")
+        else:
+            merged[cc] = []
+    try:
+        os.makedirs(os.path.dirname(OSM_CACHE), exist_ok=True)
+        with open(OSM_CACHE, "w", encoding="utf-8") as f:
+            json.dump(merged, f, separators=(",", ":"))
+    except Exception as exc:
+        print(f"OSM: could not write cache - {exc}")
+    for cc in OSM_GAP_CCS:
+        out.extend(merged[cc])
+    ok = sum(1 for cc in OSM_GAP_CCS if merged[cc])
     print(f"OSM: {len(out)} location-only diesel stations across "
-          f"{ok}/{len(OSM_GAP_CCS)} countries")
+          f"{ok}/{len(OSM_GAP_CCS)} countries "
+          f"({len(fresh)} fresh, {ok - len(fresh)} from cache)")
     return out
 
 
