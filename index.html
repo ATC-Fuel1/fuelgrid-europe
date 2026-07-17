@@ -205,7 +205,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.0</span>
+    <span class="ver">v3.1</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -326,7 +326,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.0';
+var APP_VER='3.1';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -689,14 +689,15 @@ function refreshCore(){
 
  /* legend */
  if(mode==='agg'){
-  var fcB=fuelCounts();
+  var pricedCC={};
+  (stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedCC[s.cc]=true;});
   CC_ORDER.forEach(function(cc){
-   if(!COUNTRY_ON[cc]||fcB[cc]>0)return;
+   if(!COUNTRY_ON[cc]||pricedCC[cc])return;
    var mv=MANUAL[currentFuel]&&MANUAL[currentFuel][cc],ct=COUNTRY[cc].ctr;
    if(!mv||!ct)return;
    var dm=44,fs=13.5;
    var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],html:'<div class="agg s-avg" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+mv.toFixed(2)+'</div>'}),zIndexOffset:400});
-   mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official national average \u20ac'+mv.toFixed(2)+' '+META[currentFuel].unit.slice(1)+' \u00b7 no station-level source published yet',{direction:'top',offset:[0,-dm/2]});
+   mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official national average \u20ac'+mv.toFixed(2)+' '+META[currentFuel].unit.slice(1)+' \u00b7 station locations shown in grey; per-station prices not published',{direction:'top',offset:[0,-dm/2]});
    aggLayer.addLayer(mk);
   });
   el('lgGreen').textContent='\u2265 1.5% below national avg';
