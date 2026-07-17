@@ -40,7 +40,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.26"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.27"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -62,7 +62,8 @@ IT_ANAG_FILE = "anagrafica_impianti_attivi.csv"
 IT_PREZZI_FILE = "prezzo_alle_8.csv"
 OCM_URL = "https://api.openchargemap.io/v3/poi"
 EV_CCS = ["ES", "FR", "DE", "IT", "GB", "AT", "BE", "NL", "LU", "IE",
-          "CZ", "SK", "HU", "SE", "DK", "PL", "SI", "HR", "NO", "CH"]     # EV via Open Charge Map
+          "CZ", "SK", "HU", "SE", "DK", "PL", "SI", "HR", "NO", "CH",
+          "RO"]     # EV via Open Charge Map
 ECB_FX_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 EU_BULLETIN_URLS = [
     "https://ec.europa.eu/energy/observatory/reports/latest_prices_raw_data.xlsx",
@@ -541,7 +542,7 @@ def _parse_ev_cost(s):
 
 
 OSM_GAP_CCS = ["BE", "NL", "LU", "IE", "CZ", "SK", "HU", "SE", "DK",
-               "PL", "SI", "HR", "NO", "CH"]
+               "PL", "SI", "HR", "NO", "CH", "RO"]
 OVERPASS_HOSTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
@@ -1064,6 +1065,7 @@ DEFAULT_DIESEL_AVG = {
     "BE": 1.79, "NL": 1.86, "LU": 1.45, "IE": 1.77,
     "CZ": 1.47, "SK": 1.51, "HU": 1.63, "SE": 1.72,
     "DK": 1.85, "PL": 1.45, "SI": 1.50, "HR": 1.46, "NO": 1.88,
+    "CH": 1.85, "RO": 1.46,
 }
 
 

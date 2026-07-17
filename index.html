@@ -205,7 +205,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v2.7</span>
+    <span class="ver">v2.9</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -278,6 +278,7 @@
       <li>🟢 <b>Government · per station</b> — official national price feeds, refreshed every run. Highest trust; use these to decide where to fuel.</li>
       <li>🔵 <b>Official national average</b> — one figure per country (EU Weekly Oil Bulletin), drawn as a dashed bubble at the country centre. Official but not per-station — indicative for planning only.</li>
       <li>🟡 <b>Community</b> — Open Charge Map (EV). Charger location &amp; power are reliable; price is community-supplied and often missing.</li>
+      <li>⚪ <b>Location only</b> — grey dot, no price (OpenStreetMap), for diesel in countries with no public price feed. Shows <i>where</i> to fuel, not the price.</li>
     </ul>
 
     <h4>Diesel &amp; HVO — per station (government feeds)</h4>
@@ -287,14 +288,17 @@
       <li>🇮🇹 <b>Italy</b> — Osservaprezzi Carburanti (MIMIT) — Diesel + HVO <span class="tag ok">Live · per station</span></li>
       <li>🇬🇧 <b>United Kingdom</b> — CMA Fuel Finder retailer feeds — Diesel, £→€ at ECB rate <span class="tag ok">Live · per station</span></li>
       <li>🇦🇹 <b>Austria</b> — E-Control — Diesel; by law only the cheapest station per area carries a published price, so counts are partial <span class="tag part">Live · partial</span></li>
-      <li>🇩🇪 <b>Germany</b> — Tankerkönig / MTS-K — Diesel; the live API currently blocks our automated server, so Germany shows its national average for now <span class="tag part">Pending</span></li>
+      <li>🇩🇪 <b>Germany</b> — Tankerkönig / MTS-K (official market-transparency data) — Diesel; fetched weekly from an ATC computer because the API blocks cloud servers. Coverage is partial until the bulk-file method is enabled <span class="tag part">Live · partial</span></li>
     </ul>
 
     <h4>Diesel national average — where no station feed exists</h4>
-    <p>🇪🇺 <b>EU Weekly Oil Bulletin</b> (European Commission) — official weekly national diesel average, converted to € at ECB rates, shown as a dashed bubble for Belgium, Netherlands, Luxembourg, Ireland, Czechia, Slovakia, Hungary, Sweden, Germany, Denmark, Poland, Slovenia, Croatia and Norway. Indicative baseline; any value can be overridden in data/manual/national_averages.csv.</p>
+    <p>🇪🇺 <b>EU Weekly Oil Bulletin</b> (European Commission) — official weekly national diesel average, converted to € at ECB rates, shown as a dashed bubble for Belgium, Netherlands, Luxembourg, Ireland, Czechia, Slovakia, Hungary, Sweden, Denmark, Poland, Slovenia, Croatia, Norway, Switzerland and Romania when no station-level price exists for that fuel there. Indicative baseline; any value can be overridden in data/manual/national_averages.csv.</p>
+
+    <h4>Diesel station locations — no price (OpenStreetMap)</h4>
+    <p>🗺 <b>OpenStreetMap</b> (Overpass API) — fuel-station <b>locations only</b>, shown as grey dots with no price, for Belgium, Netherlands, Luxembourg, Ireland, Czechia, Slovakia, Hungary, Sweden, Denmark, Poland, Slovenia, Croatia, Norway, Switzerland and Romania — countries with no public per-station price feed. Community-maintained coordinates: they tell your drivers where stations are, not the price. Refreshed weekly.</p>
 
     <h4>EV charging — all countries (community data)</h4>
-    <p><b>Where it comes from:</b> ⚡ <b>Open Charge Map</b> (openchargemap.org), the largest open registry of charge points, covering all 20 countries in this tool. For every charger it gives location, power rating (kW), operator, and connector type (AC / DC / HPC).</p>
+    <p><b>Where it comes from:</b> ⚡ <b>Open Charge Map</b> (openchargemap.org), the largest open registry of charge points, covering all 21 countries in this tool. For every charger it gives location, power rating (kW), operator, and connector type (AC / DC / HPC).</p>
     <p style="margin-top:6px"><b>Limitations:</b> <span id="evPriceNote">Most chargers have no public price because EV tariffs depend on the driver’s charging plan or roaming contract.</span> No official live EV-price feed exists anywhere in Europe, so per-kWh price cannot be guaranteed and is shown only where an operator publishes it. Open Charge Map is community-maintained, so a few entries may be out of date. Location and power are reliable — that is what the Van/Truck/HPC power filter at the top uses.</p>
     <p style="margin-top:6px"><b>Refresh:</b> pulled fresh every Monday 06:00 UTC together with the rest of the data, plus any time the pipeline is run manually.</p>
 
@@ -310,7 +314,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='2.7';
+var APP_VER='2.9';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -345,9 +349,10 @@ var COUNTRY={
  SI:{name:'Slovenia',flag:'\uD83C\uDDF8\uD83C\uDDEE',ctr:[46.15,14.8]},
  HR:{name:'Croatia',flag:'\uD83C\uDDED\uD83C\uDDF7',ctr:[45.1,15.5]},
  NO:{name:'Norway',flag:'\uD83C\uDDF3\uD83C\uDDF4',ctr:[61.0,9.0]},
- CH:{name:'Switzerland',flag:'\uD83C\uDDE8\uD83C\uDDED',ctr:[46.8,8.2]}
+ CH:{name:'Switzerland',flag:'\uD83C\uDDE8\uD83C\uDDED',ctr:[46.8,8.2]},
+ RO:{name:'Romania',flag:'\uD83C\uDDF7\uD83C\uDDF4',ctr:[45.9,24.9]}
 };
-var CC_ORDER=['ES','FR','DE','IT','GB','AT','BE','NL','LU','IE','CZ','SK','HU','SE','DK','PL','SI','HR','NO','CH'];
+var CC_ORDER=['ES','FR','DE','IT','GB','AT','BE','NL','LU','IE','CZ','SK','HU','SE','DK','PL','SI','HR','NO','CH','RO'];
 var BRANDS={
  ES:[{n:'Repsol',o:0.020,w:22},{n:'Moeve',o:0.014,w:13},{n:'Galp',o:0.000,w:7},{n:'BP',o:0.020,w:7},{n:'Shell',o:0.028,w:4},{n:'Ballenoil',o:-0.060,w:8},{n:'Plenoil',o:-0.058,w:7},{n:'Petroprix',o:-0.055,w:5},{n:'Avia',o:0.005,w:4}],
  FR:[{n:'TotalEnergies',o:0.030,w:18},{n:'Total Access',o:-0.020,w:9},{n:'E.Leclerc',o:-0.060,w:14},{n:'Intermarch\u00e9',o:-0.052,w:12},{n:'Carrefour',o:-0.050,w:8},{n:'Syst\u00e8me U',o:-0.048,w:7},{n:'Auchan',o:-0.050,w:5},{n:'Esso',o:0.018,w:6},{n:'Avia',o:0.008,w:6},{n:'BP',o:0.020,w:3},{n:'Shell',o:0.030,w:3}],
@@ -538,7 +543,7 @@ function popupHtml(s,mode){
  var loc=s.mwy?('Motorway '+(s.road||'')):'Urban / local';
  var html='<div class="fm-pop"><div class="nm">'+esc(s.name)+'</div>';
  if(s.p==null){
-  html+='<div class="price" style="font-size:15px;color:#5d6779">'+(currentFuel==='ev'?'Tariff varies by operator / plan':'Price available on site')+'<span class="pill s-gray">n/a</span></div>';
+  html+='<div class="price" style="font-size:15px;color:#5d6779">'+(currentFuel==='ev'?'Tariff varies by operator / plan':'No price \u2014 location only')+'<span class="pill s-gray">n/a</span></div>';
  }else{
   var st=colorFor?colorFor(s):{k:deltaStatus(relDelta(s))};
   html+='<div class="price">\u20ac'+fmtP(s.p)+' <small>'+m.unit.slice(1)+'</small><span class="pill s-'+st.k+'">'+statusLabel(st.k,mode)+'</span></div>';
@@ -702,7 +707,7 @@ function refreshCore(){
  /* national table */
  el('natTitle').textContent='National average \u00b7 '+m.label;
  var rows='';
- CC_ORDER.forEach(function(cc){
+ CC_ORDER.slice().sort(function(x,y){return COUNTRY[x].name.localeCompare(COUNTRY[y].name);}).forEach(function(cc){
   var a=AVG[currentFuel][cc],man=false;
   if(!a&&MANUAL[currentFuel]&&MANUAL[currentFuel][cc]){a=MANUAL[currentFuel][cc];man=true;}
   rows+='<div class="kv" style="opacity:'+(COUNTRY_ON[cc]?'1':'.35')+'"><span class="k">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><b>'+(a?(man?'\u2248 ':'')+'\u20ac'+fmtP(a)+' '+m.unit.slice(1):'\u2013')+'</b></div>';
