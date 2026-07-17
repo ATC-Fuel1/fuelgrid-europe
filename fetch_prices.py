@@ -40,7 +40,7 @@ OUT = os.path.join(HERE, "data", "prices-latest.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.25"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.26"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -540,7 +540,8 @@ def _parse_ev_cost(s):
     return round(v, 2) if v is not None and 0.05 < v <= 1.20 else None
 
 
-OSM_GAP_CCS = ["NL", "IE", "DK", "PL", "SE", "NO", "CH", "CZ", "SK", "HU"]
+OSM_GAP_CCS = ["BE", "NL", "LU", "IE", "CZ", "SK", "HU", "SE", "DK",
+               "PL", "SI", "HR", "NO", "CH"]
 OVERPASS_HOSTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
@@ -548,47 +549,65 @@ OVERPASS_HOSTS = [
 ]
 
 
+def _osm_pull(cc, out):
+    """Fetch one country's fuel-station locations from OpenStreetMap into
+    `out`. Returns the number added (0 if all mirrors failed)."""
+    query = ('[out:json][timeout:180];'
+             f'area["ISO3166-1"="{cc}"]["admin_level"="2"]->.a;'
+             '(node["amenity"="fuel"](area.a);'
+             'way["amenity"="fuel"](area.a););'
+             'out center tags;')
+    got, last = None, ""
+    for host in OVERPASS_HOSTS:
+        try:
+            url = host + "?data=" + urllib.parse.quote(query)
+            got = json.loads(http_get(url, 180, tries=1).decode("utf-8"))
+            break
+        except Exception as exc:
+            last = str(exc)
+    if got is None:
+        print(f"OSM {cc}: failed - {last}")
+        return 0
+    n0 = len(out)
+    for el in got.get("elements", []):
+        lat, lon = el.get("lat"), el.get("lon")
+        if lat is None:
+            ctr = el.get("center") or {}
+            lat, lon = ctr.get("lat"), ctr.get("lon")
+        if lat is None or lon is None:
+            continue
+        t = el.get("tags") or {}
+        if t.get("fuel:diesel") == "no":           # skip petrol-only sites
+            continue
+        brand = (t.get("brand") or t.get("operator")
+                 or t.get("name") or "Station").strip()[:30] or "Station"
+        name = (t.get("name") or brand).strip()[:60]
+        out.append([round(float(lat), 5), round(float(lon), 5), cc,
+                    brand, name, None, 0])
+    n = len(out) - n0
+    print(f"OSM {cc}: {n} station locations")
+    return n
+
+
 def fetch_osm_locations():
     """Fuel-station LOCATIONS (no price) from OpenStreetMap via Overpass, for
-    countries that publish no per-station price feed. Rendered as grey
-    'location only' markers. Coordinates are community-maintained (OSM)."""
+    the 14 countries with no per-station price feed. Grey 'location only'
+    markers. Overpass is flaky on big countries, so empties are retried."""
     out = []
+    counts = {}
     for cc in OSM_GAP_CCS:
-        query = ('[out:json][timeout:120];'
-                 f'area["ISO3166-1"="{cc}"]["admin_level"="2"]->.a;'
-                 '(node["amenity"="fuel"](area.a);'
-                 'way["amenity"="fuel"](area.a););'
-                 'out center tags;')
-        got, last = None, ""
-        for host in OVERPASS_HOSTS:
-            try:
-                url = host + "?data=" + urllib.parse.quote(query)
-                got = json.loads(http_get(url, 150, tries=1).decode("utf-8"))
-                break
-            except Exception as exc:
-                last = str(exc)
-        if got is None:
-            print(f"OSM {cc}: failed - {last}")
-            continue
-        n0 = len(out)
-        for el in got.get("elements", []):
-            lat, lon = el.get("lat"), el.get("lon")
-            if lat is None:
-                ctr = el.get("center") or {}
-                lat, lon = ctr.get("lat"), ctr.get("lon")
-            if lat is None or lon is None:
-                continue
-            t = el.get("tags") or {}
-            if t.get("fuel:diesel") == "no":       # skip petrol-only sites
-                continue
-            brand = (t.get("brand") or t.get("operator")
-                     or t.get("name") or "Station").strip()[:30]
-            name = (t.get("name") or brand).strip()[:60]
-            out.append([round(float(lat), 5), round(float(lon), 5), cc,
-                        brand, name, None, 0])
-        print(f"OSM {cc}: {len(out) - n0} station locations")
+        counts[cc] = _osm_pull(cc, out)
         time.sleep(2.0)
-    print(f"OSM: {len(out)} location-only diesel stations total")
+    zeros = [cc for cc in OSM_GAP_CCS if counts.get(cc, 0) == 0]
+    if zeros:
+        print(f"OSM: retrying empty countries {zeros}")
+        time.sleep(10.0)
+        for cc in zeros:
+            counts[cc] = _osm_pull(cc, out)
+            time.sleep(3.0)
+    ok = sum(1 for v in counts.values() if v)
+    print(f"OSM: {len(out)} location-only diesel stations across "
+          f"{ok}/{len(OSM_GAP_CCS)} countries")
     return out
 
 
