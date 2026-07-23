@@ -227,7 +227,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.5</span>
+    <span class="ver">v3.6</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -339,15 +339,15 @@
       <li>🇬🇧 <b>United Kingdom</b> — <b>Diesel:</b> CMA Fuel Finder retailer feeds — official live per-station, £→€ at the daily ECB rate. <b>HVO100:</b> not published.</li>
     </ul>
     <h4>Methodology &amp; updates</h4>
-    <p>Everything refreshes automatically every <b>Monday 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are official weekly figures (or pinned indicative values for Norway and Switzerland), not station-level prices.</p>
+    <p>Everything refreshes automatically <b>every day at 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are the official EU weekly bulletin figures (or pinned indicative values for Norway and Switzerland), not station-level prices.</p>
 
     <h4>EV charging — all countries (community data)</h4>
     <p><b>Where it comes from:</b> ⚡ <b>Open Charge Map</b> (openchargemap.org), the largest open registry of charge points, covering all 21 countries in this tool. For every charger it gives location, power rating (kW), operator, and connector type (AC / DC / HPC).</p>
     <p style="margin-top:6px"><b>Limitations:</b> <span id="evPriceNote">Most chargers have no public price because EV tariffs depend on the driver’s charging plan or roaming contract.</span> No official live EV-price feed exists anywhere in Europe, so per-kWh price cannot be guaranteed and is shown only where an operator publishes it. Open Charge Map is community-maintained, so a few entries may be out of date. Location and power are reliable — that is what the Van/Truck/HPC power filter at the top uses.</p>
-    <p style="margin-top:6px"><b>Refresh:</b> pulled fresh every Monday 06:00 UTC together with the rest of the data, plus any time the pipeline is run manually.</p>
+    <p style="margin-top:6px"><b>Refresh:</b> pulled fresh every day at 06:00 UTC together with the rest of the data, plus any time the pipeline is run manually.</p>
 
     <h4>Updates</h4>
-    <p>Refreshes automatically every Monday 06:00 UTC via an automated pipeline; you can also trigger it manually. <b>No sample or estimated station data is ever shown</b> — if a country or fuel has no trusted source, it stays empty.</p>
+    <p>Refreshes automatically every day at 06:00 UTC via an automated pipeline; you can also trigger it manually. <b>No sample or estimated station data is ever shown</b> — if a country or fuel has no trusted source, it stays empty.</p>
 
     <p style="margin-top:10px;color:var(--muted);font-size:12px">🗺 Basemap © OpenStreetMap contributors · © CARTO</p>
   </div>
@@ -358,7 +358,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.5';
+var APP_VER='3.6';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -888,7 +888,7 @@ function refreshBadges(){
  if(tag)tag.style.display='none';
  if(live.length===0){el('snapshot').textContent='No live data loaded';return;}
  var liveTxt=live.map(function(k){return names[k];}).join(' + ');
- el('snapshot').innerHTML='<span class="dot"></span>Updated '+SNAP+' \u00b7 auto-refresh weekly';
+ el('snapshot').innerHTML='<span class="dot"></span>Updated '+SNAP+' \u00b7 auto-refresh daily';
 }
 function applyPayload(pl){
  try{
