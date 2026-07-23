@@ -47,7 +47,8 @@
   .brand .ver{font-size:10px;font-weight:700;letter-spacing:.08em;color:#9fb4e8;background:rgba(26,86,196,.25);border:1px solid rgba(159,180,232,.4);padding:2px 7px;border-radius:999px}
 
   .seg{display:flex;background:var(--sign);border-radius:12px;padding:4px;gap:4px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
-  .fseg{margin-left:auto}
+  .fseg{margin-left:18px;position:relative}
+  .fseg::before{content:'';position:absolute;left:-9px;top:50%;transform:translateY(-50%);height:22px;width:1px;background:rgba(255,255,255,.18)}
   .powseg{flex-basis:100%;margin-top:6px;display:none}
   .powseg.show{display:flex}
   .powseg button{font-size:11.5px}
@@ -59,6 +60,26 @@
   .cbtn .cnt{font-size:9.5px;font-weight:800;background:rgba(255,255,255,.25);color:#fff;border-radius:999px;padding:1.5px 6px;margin-left:6px;vertical-align:1px}
   .cbtn[aria-pressed="true"] .cnt{background:rgba(26,86,196,.14);color:var(--sign-dark)}
   .cbtn .cnt.zero{background:var(--red);color:#fff}
+  /* country dropdown */
+  .cty-wrap{position:relative;margin-left:12px}
+  .cty-btn{display:inline-flex;align-items:center;gap:7px}
+  .cty-btn .cty-badge{background:rgba(26,86,196,.35);border:1px solid rgba(159,180,232,.5);color:#eaf1ff;font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px}
+  .cty-btn .chev{font-size:10px;opacity:.85;transition:transform .15s}
+  .cty-btn[aria-expanded="true"] .chev{transform:rotate(180deg)}
+  .cty-panel{position:absolute;top:calc(100% + 8px);left:0;z-index:1200;width:344px;max-width:88vw;background:#fff;border-radius:14px;box-shadow:0 18px 44px rgba(16,24,40,.30);padding:12px;border:1px solid rgba(16,24,40,.08)}
+  .cty-panel[hidden]{display:none}
+  .cty-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 10px;font-size:11.5px;font-weight:800;color:var(--sign-dark);text-transform:uppercase;letter-spacing:.05em}
+  .cty-actions{display:flex;gap:6px}
+  .cty-mini{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:11px;font-weight:700;padding:3px 11px;border-radius:8px;cursor:pointer}
+  .cty-mini:hover{background:#e8edf7}
+  .cty-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:44vh;overflow:auto}
+  .cty-grid .cbtn{display:flex;align-items:center;justify-content:space-between;gap:4px;border:1px solid rgba(16,24,40,.14);background:#fff;color:var(--sign-dark);font-size:11.5px;font-weight:700;padding:6px 8px;border-radius:9px;cursor:pointer;transition:background .12s,border-color .12s,opacity .12s}
+  .cty-grid .cbtn::before{content:none !important}
+  .cty-grid .cbtn[aria-pressed="true"]{background:rgba(26,86,196,.09);border-color:rgba(26,86,196,.45)}
+  .cty-grid .cbtn[aria-pressed="false"]{opacity:.5;background:#f7f8fa}
+  .cty-grid .cbtn[aria-pressed="false"]:hover{opacity:.85}
+  .cty-grid .cbtn .cnt{font-size:9.5px;font-weight:800;background:rgba(26,86,196,.12);color:var(--sign-dark);border-radius:999px;padding:1.5px 6px}
+  .cty-grid .cbtn .cnt.zero{background:var(--red);color:#fff}
   #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:1300;background:#101828;color:#fff;font-size:12.5px;font-weight:600;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;text-align:center}
   #toast.show{opacity:1}
   .seg button{
@@ -71,7 +92,8 @@
 
   .head-right{margin-left:auto;display:flex;align-items:center;gap:12px}
   .seg + .head-right{margin-left:0}
-  .snapshot{font-size:11.5px;color:#aeb8c9;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .snapshot{font-size:11.5px;color:#c7d2e3;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;display:inline-flex;align-items:center}
+  .snapshot .dot{width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:7px;box-shadow:0 0 0 3px rgba(18,161,80,.20)}
   .btn-ghost{
     border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;
     font-size:12px;font-weight:700;letter-spacing:.04em;padding:7px 12px;border-radius:9px;
@@ -97,7 +119,7 @@
   .agg.s-green{background:rgba(18,161,80,.93)}
   .agg.s-amber{background:rgba(245,165,36,.95)}
   .agg.s-red{background:rgba(229,72,77,.93)}
-  .agg.s-gray{background:rgba(154,163,178,.93)}
+  .agg.s-gray{background:rgba(150,159,174,.80);border-width:1.5px;border-color:rgba(255,255,255,.85);box-shadow:0 1px 4px rgba(16,24,40,.16)}
   .agg.s-avg{background:rgba(59,76,104,.97);border-style:dashed;border-width:3px}
 
   /* Popups */
@@ -205,14 +227,24 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.2</span>
+    <span class="ver">v3.4</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
     <button data-fuel="hvo" aria-pressed="false">HVO100</button>
     <button data-fuel="ev" aria-pressed="false">EV charging</button>
   </nav>
-  <nav class="seg cseg" id="cseg" role="group" aria-label="Countries"></nav>
+  <div class="cty-wrap">
+    <button class="btn-ghost cty-btn" id="ctyBtn" aria-expanded="false" aria-haspopup="true">
+      <span aria-hidden="true">🌍</span> Countries <b class="cty-badge" id="ctyCount">21/21</b> <span class="chev" aria-hidden="true">▾</span>
+    </button>
+    <div class="cty-panel" id="ctyPanel" role="group" aria-label="Filter countries" hidden>
+      <div class="cty-head"><span>Show on map</span>
+        <div class="cty-actions"><button id="ctyAll" class="cty-mini">All</button><button id="ctyNone" class="cty-mini">None</button></div>
+      </div>
+      <div class="cty-grid" id="cseg"></div>
+    </div>
+  </div>
   <button class="btn-ghost" id="resetBtn">Reset</button>
   <nav class="seg powseg" id="powseg" role="group" aria-label="Charger power">
     <button data-kw="0" aria-pressed="true">All chargers</button>
@@ -326,7 +358,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.2';
+var APP_VER='3.4';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -637,11 +669,13 @@ function refreshCore(){
    var k,d=0,avgP=null,label;
    if(c.np>0){avgP=c.sp/c.np;d=c.sd/c.np;k=deltaStatus(d);label=avgP.toFixed(2);}
    else{k='gray';label=String(c.n);}
-   var dm=clamp(24+Math.sqrt(c.n)*2.2,24,50);
-   var fs=dm>=44?13.5:(dm>=32?12:11);
+   var isGray=(k==='gray');
+   if(isGray){label=c.n>=10000?Math.round(c.n/1000)+'k':(c.n>=1000?(c.n/1000).toFixed(1)+'k':String(c.n));}
+   var dm=isGray?clamp(20+Math.sqrt(c.n)*1.05,20,36):clamp(24+Math.sqrt(c.n)*2.2,24,50);
+   var fs=isGray?(dm>=32?11:10):(dm>=44?13.5:(dm>=32?12:11));
    var icon=L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],
      html:'<div class="agg s-'+k+'" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+label+'</div>'});
-   var mk=L.marker([la,lo],{icon:icon});
+   var mk=L.marker([la,lo],{icon:icon,zIndexOffset:isGray?-500:0});
    var tt;
    if(avgP!=null){
     tt=fmtInt(c.n)+(currentFuel==='ev'?' chargers':' stations')+' \u00b7 avg \u20ac'+fmtP(avgP)+' '+META[currentFuel].unit.slice(1)+' \u00b7 '+(d>=0?'+':'')+(d*100).toFixed(1)+'% vs national';
@@ -739,6 +773,15 @@ function buildChips(){
  el('cseg').innerHTML=html;
 }
 buildChips();
+function updateCtyCount(){var on=0;CC_ORDER.forEach(function(cc){if(COUNTRY_ON[cc])on++;});var e=el('ctyCount');if(e)e.textContent=on+'/'+CC_ORDER.length;}
+updateCtyCount();
+(function(){var b=el('ctyBtn'),p=el('ctyPanel');if(!b||!p)return;
+ b.addEventListener('click',function(e){e.stopPropagation();var hid=p.hasAttribute('hidden');if(hid){p.removeAttribute('hidden');b.setAttribute('aria-expanded','true');}else{p.setAttribute('hidden','');b.setAttribute('aria-expanded','false');}});
+ document.addEventListener('click',function(e){if(!p.hasAttribute('hidden')&&!p.contains(e.target)&&!b.contains(e.target)){p.setAttribute('hidden','');b.setAttribute('aria-expanded','false');}});
+ var a=el('ctyAll'),n=el('ctyNone');
+ if(a)a.addEventListener('click',function(){CC_ORDER.forEach(function(cc){COUNTRY_ON[cc]=true;});document.querySelectorAll('.cbtn').forEach(function(x){x.setAttribute('aria-pressed','true');});updateCtyCount();map.closePopup();refresh();});
+ if(n)n.addEventListener('click',function(){CC_ORDER.forEach(function(cc){COUNTRY_ON[cc]=false;});document.querySelectorAll('.cbtn').forEach(function(x){x.setAttribute('aria-pressed','false');});updateCtyCount();map.closePopup();refresh();});
+})();
 
 /* ---------------- chip counts + toast ---------------- */
 var toastT=null;
@@ -791,6 +834,7 @@ document.querySelectorAll('.cbtn').forEach(function(btn){
   COUNTRY_ON[cc]=!COUNTRY_ON[cc];
   btn.classList.toggle('on',COUNTRY_ON[cc]);
   btn.setAttribute('aria-pressed',COUNTRY_ON[cc]?'true':'false');
+  updateCtyCount();
   map.closePopup();
   refresh();
   if(fuelCounts()[cc]===0)toast(zeroMsg(cc));
@@ -799,6 +843,7 @@ document.querySelectorAll('.cbtn').forEach(function(btn){
 el('resetBtn').addEventListener('click',function(){
  Object.keys(COUNTRY_ON).forEach(function(cc){COUNTRY_ON[cc]=true;});
  document.querySelectorAll('.cbtn').forEach(function(b){b.setAttribute('aria-pressed','true');b.classList.add('on');});
+ updateCtyCount();
  currentFuel='diesel';evMinKw=0;
  el('powseg').classList.remove('show');
  document.querySelectorAll('.powseg button').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-kw')==='0'?'true':'false');});
@@ -838,7 +883,7 @@ function refreshBadges(){
  if(tag)tag.style.display='none';
  if(live.length===0){el('snapshot').textContent='No live data loaded';return;}
  var liveTxt=live.map(function(k){return names[k];}).join(' + ');
- el('snapshot').textContent='Snapshot '+SNAP+' \u00b7 '+liveTxt+': live';
+ el('snapshot').innerHTML='<span class="dot"></span>Updated '+SNAP+' \u00b7 auto-refresh weekly';
 }
 function applyPayload(pl){
  try{
