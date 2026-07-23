@@ -227,7 +227,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.4</span>
+    <span class="ver">v3.5</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -358,7 +358,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.4';
+var APP_VER='3.5';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -659,7 +659,7 @@ function refreshCore(){
   var cells={};
   pad.forEach(function(st){
    var key=Math.floor(st.lat/cd)+'_'+Math.floor(st.lng/cd);
-   var c=cells[key]||(cells[key]={sla:0,slo:0,n:0,sp:0,np:0,sd:0});
+   var c=cells[key]||(cells[key]={sla:0,slo:0,n:0,sp:0,np:0,sd:0,cc:st.cc});
    c.sla+=st.lat;c.slo+=st.lng;c.n++;
    if(st.p!=null){c.sp+=st.p;c.np++;c.sd+=relDelta(st);}
   });
@@ -670,6 +670,7 @@ function refreshCore(){
    if(c.np>0){avgP=c.sp/c.np;d=c.sd/c.np;k=deltaStatus(d);label=avgP.toFixed(2);}
    else{k='gray';label=String(c.n);}
    var isGray=(k==='gray');
+   if(isGray && MANUAL[currentFuel] && MANUAL[currentFuel][c.cc]) return; /* shown as one country-average bubble instead */
    if(isGray){label=c.n>=10000?Math.round(c.n/1000)+'k':(c.n>=1000?(c.n/1000).toFixed(1)+'k':String(c.n));}
    var dm=isGray?clamp(20+Math.sqrt(c.n)*1.05,20,36):clamp(24+Math.sqrt(c.n)*2.2,24,50);
    var fs=isGray?(dm>=32?11:10):(dm>=44?13.5:(dm>=32?12:11));
@@ -723,15 +724,19 @@ function refreshCore(){
 
  /* legend */
  if(mode==='agg'){
-  var pricedCC={};
-  (stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedCC[s.cc]=true;});
+  var pricedCC={},locCnt={};
+  (stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedCC[s.cc]=true;locCnt[s.cc]=(locCnt[s.cc]||0)+1;});
   CC_ORDER.forEach(function(cc){
    if(!COUNTRY_ON[cc]||pricedCC[cc])return;
    var mv=MANUAL[currentFuel]&&MANUAL[currentFuel][cc],ct=COUNTRY[cc].ctr;
    if(!mv||!ct)return;
-   var dm=60,fs=16.5;
+   var dm=52,fs=15;
    var mk=L.marker(ct,{icon:L.divIcon({className:'aggWrap',iconSize:[dm,dm],iconAnchor:[dm/2,dm/2],html:'<div class="agg s-avg" style="width:'+dm+'px;height:'+dm+'px;font-size:'+fs+'px">'+mv.toFixed(2)+'</div>'}),zIndexOffset:900});
-   mk.bindTooltip(COUNTRY[cc].name+' \u00b7 official national average \u20ac'+mv.toFixed(2)+' '+META[currentFuel].unit.slice(1)+' \u00b7 station locations shown in grey; per-station prices not published',{direction:'top',offset:[0,-dm/2]});
+   var cnt=locCnt[cc]||0;
+   var tip=COUNTRY[cc].name+' \u00b7 national average \u20ac'+mv.toFixed(2)+' '+META[currentFuel].unit.slice(1);
+   tip+=cnt?' \u00b7 '+fmtInt(cnt)+' station locations (zoom in to see them)':' \u00b7 indicative average, per-station prices not published';
+   mk.bindTooltip(tip,{direction:'top',offset:[0,-dm/2]});
+   mk.on('click',function(){var tz=Math.max(z+2,z<STATION_ZOOM-1?z+2:STATION_ZOOM);if(reduceMotion)map.setView(ct,tz);else map.flyTo(ct,tz,{duration:0.7});});
    aggLayer.addLayer(mk);
   });
   el('lgGreen').textContent='\u2265 1.5% below national avg';
