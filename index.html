@@ -148,6 +148,12 @@
   .tc-foot{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
   .tc-foot small{color:#8a94a6;font-weight:600}
   .tc-up{color:#d64545}.tc-down{color:#12a150}.tc-flat{color:#8a94a6}
+  .searchbox{display:flex;align-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:9px;overflow:hidden}
+  .searchbox input{background:transparent;border:0;outline:0;color:#fff;font-size:12.5px;padding:6px 9px;width:150px}
+  .searchbox input::placeholder{color:rgba(255,255,255,.6)}
+  .searchbox button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:13px;padding:5px 9px}
+  .searchbox button:hover{background:rgba(255,255,255,.12)}
+  .searchPin .spin{width:16px;height:16px;border-radius:50%;background:#1a56c4;border:3px solid #fff;box-shadow:0 0 0 3px rgba(26,86,196,.35)}
   body.trends-mode #powseg,body.trends-mode #nearBtn,body.trends-mode #csvBtn,body.trends-mode #resetBtn,body.trends-mode #panel,body.trends-mode #panelOpen,body.trends-mode #hint,body.trends-mode .tileWarn{display:none !important}
 
   /* Popups */
@@ -255,7 +261,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.9</span>
+    <span class="ver">v4.0</span>
   </div>
   <nav class="seg viewseg" id="viewseg" role="group" aria-label="View">
     <button data-view="map" aria-pressed="true">Map</button>
@@ -285,6 +291,7 @@
     <button data-kw="350">HPC ≥350 kW</button>
   </nav>
   <div class="head-right">
+    <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
     <span class="snapshot" id="snapshot">Loading live data…</span>
     <button class="btn-ghost" id="nearBtn" title="Find the cheapest stations near a point on the map">◎ Cheapest</button>
     <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ CSV</button>
@@ -398,7 +405,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.9';
+var APP_VER='4.0';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -976,20 +983,44 @@ function buildTrends(){
   document.body.classList.toggle('trends-mode',isT);
   if(isT)buildTrends();else{map.invalidateSize();}
  });});})();
+var searchMarker=null;
+var CITY={dublin:[53.3498,-6.2603],cork:[51.8985,-8.4756],galway:[53.2707,-9.0568],amsterdam:[52.3676,4.9041],rotterdam:[51.9244,4.4777],london:[51.5074,-0.1278],manchester:[53.4808,-2.2426],birmingham:[52.4862,-1.8904],glasgow:[55.8642,-4.2518],paris:[48.8566,2.3522],lyon:[45.7640,4.8357],marseille:[43.2965,5.3698],lille:[50.6292,3.0573],madrid:[40.4168,-3.7038],barcelona:[41.3874,2.1686],valencia:[39.4699,-0.3763],seville:[37.3891,-5.9845],bilbao:[43.2630,-2.9350],berlin:[52.5200,13.4050],munich:[48.1351,11.5820],hamburg:[53.5511,9.9937],frankfurt:[50.1109,8.6821],cologne:[50.9375,6.9603],stuttgart:[48.7758,9.1829],rome:[41.9028,12.4964],milan:[45.4642,9.1900],naples:[40.8518,14.2681],turin:[45.0703,7.6869],vienna:[48.2082,16.3738],brussels:[50.8503,4.3517],antwerp:[51.2194,4.4025],luxembourg:[49.6116,6.1319],zurich:[47.3769,8.5417],geneva:[46.2044,6.1432],prague:[50.0755,14.4378],bratislava:[48.1486,17.1077],budapest:[47.4979,19.0402],warsaw:[52.2297,21.0122],krakow:[50.0647,19.9450],gdansk:[54.3520,18.6466],wroclaw:[51.1079,17.0385],stockholm:[59.3293,18.0686],gothenburg:[57.7089,11.9746],malmo:[55.6050,13.0038],copenhagen:[55.6761,12.5683],oslo:[59.9139,10.7522],lisbon:[38.7223,-9.1393],porto:[41.1579,-8.6291],ljubljana:[46.0569,14.5058],zagreb:[45.8150,15.9819],bucharest:[44.4268,26.1025]};
+function flyToPlace(lat,lng,label){
+ if(currentView!=='map'){var mb=document.querySelector('.viewseg button[data-view="map"]');if(mb)mb.click();}
+ var z=Math.max(map.getZoom(),11);
+ if(reduceMotion)map.setView([lat,lng],z);else map.flyTo([lat,lng],z,{duration:0.8});
+ if(searchMarker){map.removeLayer(searchMarker);}
+ searchMarker=L.marker([lat,lng],{zIndexOffset:2000,icon:L.divIcon({className:'searchPin',iconSize:[16,16],iconAnchor:[8,8],html:'<div class="spin"></div>'})}).addTo(map);
+ if(label)searchMarker.bindTooltip(label,{direction:'top',offset:[0,-10]}).openTooltip();
+}
+function doSearch(){
+ var inp=el('searchInput');if(!inp)return;var q=(inp.value||'').trim();if(!q)return;
+ var key=q.toLowerCase().replace(/\s+/g,' ');
+ if(CITY[key]){flyToPlace(CITY[key][0],CITY[key][1],q);return;}
+ toast('Searching \u201c'+q+'\u201d\u2026');
+ var cc=CC_ORDER.join(',').toLowerCase();
+ fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes='+cc+'&q='+encodeURIComponent(q))
+  .then(function(r){return r.ok?r.json():[];})
+  .then(function(a){if(a&&a.length){flyToPlace(parseFloat(a[0].lat),parseFloat(a[0].lon),(a[0].display_name||q).split(',')[0]);}else{toast('Place not found: '+q);}})
+  .catch(function(){toast('Search unavailable on this network \u2014 try a major city name.');});
+}
+(function(){var b=el('searchBtn'),i=el('searchInput');if(b)b.addEventListener('click',doSearch);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doSearch();}});})();
 fetch('data/history.json?v='+Date.now()).then(function(r){return r.ok?r.json():{days:[]};}).then(function(j){HISTORY=(j&&j.days)?j:{days:[]};if(currentView==='trends')buildTrends();}).catch(function(){});
 
 /* ---- Feature 1: export current view to CSV ---- */
 function csvEsc(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 (function(){var b=el('csvBtn');if(!b)return;b.addEventListener('click',function(){
  var rows=[['name','brand','country','lat','lng','price_eur','unit','fuel','power_kw','type','updated']];
- (lastView||[]).forEach(function(s){
+ (stations[currentFuel]||[]).forEach(function(s){
+  if(!COUNTRY_ON[s.cc])return;
+  if(currentFuel==='ev'&&evMinKw&&(s.kw||0)<evMinKw)return;
   rows.push([s.name,s.brand||'',s.cc,s.lat,s.lng,(s.p==null?'':s.p),META[currentFuel].unit.slice(1),currentFuel.toUpperCase(),(currentFuel==='ev'?(s.kw||''):''),(s.mwy?'motorway':'local'),SNAP]);
  });
  var csv=rows.map(function(r){return r.map(csvEsc).join(',');}).join('\n');
  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);
  var a=document.createElement('a');a.href=url;a.download='fuelgrid_'+currentFuel+'_'+(new Date().toISOString().slice(0,10))+'.csv';
  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
- toast('Exported '+((lastView||[]).length)+' stations (current view) to CSV');
+ toast('Exported '+(rows.length-1)+' stations (all selected countries) to CSV');
 });})();
 
 /* ---- Feature 2: cheapest priced stations near a clicked point ---- */
