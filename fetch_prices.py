@@ -37,10 +37,11 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data", "prices-latest.json")
+HIST = os.path.join(HERE, "data", "history.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.28"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.29"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -1105,6 +1106,48 @@ def merged_averages():
     return out
 
 
+def append_history(fuels, manual):
+    """Append today's per-country average price to data/history.json so the
+    Trends view can chart movement over time. Tiny file: one row per day,
+    ~20 numbers per fuel. Re-running the same day overwrites that day."""
+    def country_avgs(fuel):
+        sums, cnts = {}, {}
+        for st in fuels.get(fuel, {}).get("stations", []):
+            p = st[5] if len(st) > 5 else None
+            if p is None:
+                continue
+            cc = st[2]
+            sums[cc] = sums.get(cc, 0.0) + p
+            cnts[cc] = cnts.get(cc, 0) + 1
+        avg = {cc: round(sums[cc] / cnts[cc], 3) for cc in sums}
+        # fall back to the official/manual average where we have no priced data
+        for cc, v in (manual.get(fuel) or {}).items():
+            avg.setdefault(cc, round(float(v), 3))
+        return avg
+
+    today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+    row = {"d": today,
+           "diesel": country_avgs("diesel"),
+           "hvo": country_avgs("hvo")}
+    try:
+        with open(HIST, encoding="utf-8") as f:
+            hist = json.load(f)
+        if not isinstance(hist, dict) or "days" not in hist:
+            hist = {"days": []}
+    except Exception:
+        hist = {"days": []}
+    hist["days"] = [d for d in hist["days"] if d.get("d") != today]
+    hist["days"].append(row)
+    hist["days"] = hist["days"][-400:]          # keep ~13 months, bound size
+    try:
+        os.makedirs(os.path.dirname(HIST), exist_ok=True)
+        with open(HIST, "w", encoding="utf-8") as f:
+            json.dump(hist, f, separators=(",", ":"), ensure_ascii=False)
+        print(f"History: logged {today} ({len(hist['days'])} days on file)")
+    except Exception as exc:
+        print(f"History: could not write - {exc}")
+
+
 def main():
     diesel, hvo = [], []
     jobs = [
@@ -1180,6 +1223,8 @@ def main():
     size_mb = os.path.getsize(OUT) / 1e6
     print(f"Wrote {OUT}  ({size_mb:.1f} MB) - "
           f"{len(diesel)} diesel / {len(hvo)} HVO / {len(ev)} EV stations")
+
+    append_history(fuels, payload["manual_avg"])
 
 
 if __name__ == "__main__":

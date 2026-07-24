@@ -133,6 +133,22 @@
   .fm-pop .nearname{flex:1;font-size:12px;line-height:1.25}
   .fm-pop .nearprice{font-weight:800;color:#12a150;font-variant-numeric:tabular-nums;white-space:nowrap}
   .btn-ghost.on{background:rgba(26,86,196,.28);border-color:rgba(159,180,232,.6)}
+  /* trends view */
+  #trends{position:absolute;left:0;right:0;bottom:0;top:60px;overflow:auto;background:#f5f7fb;z-index:600}
+  #trends[hidden]{display:none}
+  .trends-inner{max-width:1100px;margin:0 auto;padding:22px 18px 40px}
+  .trends-head h2{margin:0 0 4px;font-size:20px;color:var(--sign-dark)}
+  .trends-sub{margin:0 0 18px;font-size:12.5px;color:#5d6779}
+  .trend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .tcard{background:#fff;border:1px solid rgba(16,24,40,.09);border-radius:14px;padding:12px 13px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .tc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .tc-name{font-size:13px;font-weight:700;color:var(--sign-dark)}
+  .tc-price{font-size:15px;font-weight:800;color:var(--sign-dark);font-variant-numeric:tabular-nums}
+  .spark{display:block;margin:2px 0 8px}
+  .tc-foot{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+  .tc-foot small{color:#8a94a6;font-weight:600}
+  .tc-up{color:#d64545}.tc-down{color:#12a150}.tc-flat{color:#8a94a6}
+  body.trends-mode #powseg,body.trends-mode #nearBtn,body.trends-mode #csvBtn,body.trends-mode #resetBtn,body.trends-mode #panel,body.trends-mode #panelOpen,body.trends-mode #hint,body.trends-mode .tileWarn{display:none !important}
 
   /* Popups */
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
@@ -239,8 +255,12 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.8</span>
+    <span class="ver">v3.9</span>
   </div>
+  <nav class="seg viewseg" id="viewseg" role="group" aria-label="View">
+    <button data-view="map" aria-pressed="true">Map</button>
+    <button data-view="trends" aria-pressed="false">Trends</button>
+  </nav>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
     <button data-fuel="hvo" aria-pressed="false">HVO100</button>
@@ -273,6 +293,12 @@
 </header>
 
 <div id="map" role="application" aria-label="Fuel price map of Spain, France, Germany and Italy"></div>
+<section id="trends" hidden aria-label="Price trends">
+  <div class="trends-inner">
+    <div class="trends-head"><h2 id="trendTitle">Diesel price trends</h2><p id="trendSub" class="trends-sub"></p></div>
+    <div id="trendGrid" class="trend-grid"></div>
+  </div>
+</section>
 
 <button class="panel-toggle" id="panelOpen" aria-label="Show statistics panel">☰</button>
 
@@ -372,7 +398,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.8';
+var APP_VER='3.9';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -560,6 +586,7 @@ L.control.scale({imperial:false}).addTo(map);
 function fitMap(){
  var h=document.querySelector('header').offsetHeight;
  el('map').style.top=h+'px';
+ var _t=el('trends');if(_t)_t.style.top=h+'px';
  el('panel').style.top=(h+14)+'px';
  el('panel').style.maxHeight='calc(100% - '+(h+36)+'px)';
  el('panelOpen').style.top=(h+14)+'px';
@@ -841,6 +868,7 @@ document.querySelectorAll('.fseg button').forEach(function(btn){
   map.closePopup();
   refresh();
   updateChipCounts();
+  if(currentView==='trends')buildTrends();
  });
 });
 document.querySelectorAll('.powseg button').forEach(function(btn){
@@ -905,6 +933,50 @@ document.addEventListener("click",function(e){
  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(g).then(done,done);}
  else{try{var ta=document.createElement("textarea");ta.value=g;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);done();}catch(_){}}
 });
+
+var currentView='map';
+var HISTORY={days:[]};
+function sparkline(vals){
+ var w=220,h=48,pad=5;var v=vals.slice();if(v.length===1)v=[v[0],v[0]];
+ var mn=Math.min.apply(null,v),mx=Math.max.apply(null,v),rng=(mx-mn)||1;
+ var pts=v.map(function(val,i){var x=pad+(w-2*pad)*(i/(v.length-1));var y=h-pad-(h-2*pad)*((val-mn)/rng);return x.toFixed(1)+','+y.toFixed(1);});
+ var last=pts[pts.length-1].split(',');var up=v[v.length-1]>=v[0];var col=up?'#d64545':'#12a150';
+ return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" width="100%" height="48">'+
+   '<polyline fill="none" stroke="'+col+'" stroke-width="2" stroke-linejoin="round" points="'+pts.join(' ')+'"/>'+
+   '<circle cx="'+last[0]+'" cy="'+last[1]+'" r="2.7" fill="'+col+'"/></svg>';
+}
+function buildTrends(){
+ var fuel=(currentFuel==='ev')?'diesel':currentFuel;
+ var tt=el('trendTitle');if(tt)tt.textContent=(fuel==='hvo'?'HVO100':'Diesel')+' price trends';
+ var days=(HISTORY&&HISTORY.days)?HISTORY.days:[];var sub=el('trendSub');
+ if(sub){
+  if(days.length<2)sub.textContent=days.length===0?'No history yet \u2014 trends appear once the daily pipeline has run at least once.':'History is building \u2014 1 day recorded so far. Lines develop over the coming days.';
+  else sub.textContent=days.length+' days recorded \u00b7 national averages \u00b7 '+days[0].d+' \u2192 '+days[days.length-1].d;
+ }
+ var out='';
+ CC_ORDER.forEach(function(cc){
+  if(!COUNTRY_ON[cc])return;
+  var series=[];days.forEach(function(d){var val=d[fuel]&&d[fuel][cc];if(val!=null)series.push(val);});
+  if(!series.length)return;
+  var cur=series[series.length-1],past=series.length>=30?series[series.length-30]:series[0];
+  var chg=cur-past,pct=past?(chg/past*100):0;
+  var dir=Math.abs(pct)<0.15?'flat':(chg>0?'up':'down');
+  var arrow=dir==='flat'?'\u2192':(dir==='up'?'\u2191':'\u2193');
+  out+='<div class="tcard"><div class="tc-top"><span class="tc-name">'+COUNTRY[cc].flag+' '+COUNTRY[cc].name+'</span><span class="tc-price">\u20ac'+fmtP(cur)+'</span></div>'+
+   sparkline(series)+
+   '<div class="tc-foot tc-'+dir+'">'+arrow+' '+(chg>=0?'+':'')+pct.toFixed(1)+'% <small>vs '+(series.length>=30?'30d ago':'start')+'</small></div></div>';
+ });
+ var g=el('trendGrid');if(g)g.innerHTML=out||'<p style="color:#5d6779">No countries selected, or no history for this fuel yet.</p>';
+}
+(function(){var vb=document.querySelectorAll('.viewseg button');if(!vb.length)return;
+ vb.forEach(function(b){b.addEventListener('click',function(){
+  var v=b.getAttribute('data-view');if(v===currentView)return;currentView=v;
+  vb.forEach(function(x){x.setAttribute('aria-pressed',x.getAttribute('data-view')===v?'true':'false');});
+  var isT=(v==='trends');var t=el('trends');if(t)t.hidden=!isT;
+  document.body.classList.toggle('trends-mode',isT);
+  if(isT)buildTrends();else{map.invalidateSize();}
+ });});})();
+fetch('data/history.json?v='+Date.now()).then(function(r){return r.ok?r.json():{days:[]};}).then(function(j){HISTORY=(j&&j.days)?j:{days:[]};if(currentView==='trends')buildTrends();}).catch(function(){});
 
 /* ---- Feature 1: export current view to CSV ---- */
 function csvEsc(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
