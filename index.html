@@ -154,6 +154,22 @@
   .searchbox button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:13px;padding:5px 9px}
   .searchbox button:hover{background:rgba(255,255,255,.12)}
   .searchPin .spin{width:16px;height:16px;border-radius:50%;background:#1a56c4;border:3px solid #fff;box-shadow:0 0 0 3px rgba(26,86,196,.35)}
+  .searchbox .searchclear{background:transparent;border:0;color:rgba(255,255,255,.75);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px}
+  .searchbox .searchclear:hover{color:#fff}
+  .brand-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .brand-row{display:flex;align-items:center;gap:8px}
+  .cheap-wrap{position:relative}
+  .cheap-panel{position:absolute;top:calc(100% + 8px);right:0;z-index:1200;width:222px;background:#fff;border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.28);border:1px solid rgba(16,24,40,.08);padding:11px}
+  .cheap-panel[hidden]{display:none}
+  .cheap-head{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--sign-dark);margin-bottom:8px}
+  .cheap-rad{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:9px}
+  .cheap-rad button{border:1px solid rgba(16,24,40,.16);background:#f4f6fb;color:var(--sign-dark);font-size:10.5px;font-weight:700;padding:5px 0;border-radius:7px;cursor:pointer}
+  .cheap-rad button.on{background:#1a56c4;color:#fff;border-color:#1a56c4}
+  .cheap-geo{width:100%;border:1px solid rgba(26,86,196,.4);background:rgba(26,86,196,.08);color:#1a3f8a;font-size:12px;font-weight:700;padding:7px;border-radius:8px;cursor:pointer}
+  .cheap-geo:hover{background:rgba(26,86,196,.15)}
+  .cheap-hint{margin:8px 2px 0;font-size:11px;color:#8a94a6}
+  .fm-pop .nearprice{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+  .fm-pop .nearsave{font-size:10px;font-weight:700;color:#12a150}
   body.trends-mode #powseg,body.trends-mode #nearBtn,body.trends-mode #csvBtn,body.trends-mode #resetBtn,body.trends-mode #panel,body.trends-mode #panelOpen,body.trends-mode #hint,body.trends-mode .tileWarn{display:none !important}
 
   /* Popups */
@@ -260,8 +276,10 @@
 <header>
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
-    <h1>FuelGrid Europe</h1>
-    <span class="ver">v4.0</span>
+    <div class="brand-txt">
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.1</span></div>
+      <span class="snapshot" id="snapshot">Loading live data…</span>
+    </div>
   </div>
   <nav class="seg viewseg" id="viewseg" role="group" aria-label="View">
     <button data-view="map" aria-pressed="true">Map</button>
@@ -291,9 +309,16 @@
     <button data-kw="350">HPC ≥350 kW</button>
   </nav>
   <div class="head-right">
-    <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
-    <span class="snapshot" id="snapshot">Loading live data…</span>
-    <button class="btn-ghost" id="nearBtn" title="Find the cheapest stations near a point on the map">◎ Cheapest</button>
+    <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
+    <div class="cheap-wrap">
+      <button class="btn-ghost" id="nearBtn" aria-expanded="false" title="Find the cheapest fuel near a point">◎ Cheapest</button>
+      <div class="cheap-panel" id="cheapPanel" hidden>
+        <div class="cheap-head">Cheapest fuel near…</div>
+        <div class="cheap-rad" id="cheapRad"><button data-r="25">25 km</button><button data-r="50">50 km</button><button data-r="80" class="on">80 km</button><button data-r="100">100 km</button></div>
+        <button class="cheap-geo" id="geoBtn">📍 Use my location</button>
+        <p class="cheap-hint">…or click any point on the map.</p>
+      </div>
+    </div>
     <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ CSV</button>
     <button class="btn-ghost" id="srcBtn">Sources</button>
   </div>
@@ -405,7 +430,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.0';
+var APP_VER='4.1';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -996,15 +1021,20 @@ function flyToPlace(lat,lng,label){
 function doSearch(){
  var inp=el('searchInput');if(!inp)return;var q=(inp.value||'').trim();if(!q)return;
  var key=q.toLowerCase().replace(/\s+/g,' ');
- if(CITY[key]){flyToPlace(CITY[key][0],CITY[key][1],q);return;}
+ var _c=el('searchClear');if(_c)_c.hidden=false;
+ if(CITY[key]){flyToPlace(CITY[key][0],CITY[key][1],q);showCheapestNear(CITY[key][0],CITY[key][1],q,true);return;}
  toast('Searching \u201c'+q+'\u201d\u2026');
  var cc=CC_ORDER.join(',').toLowerCase();
  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes='+cc+'&q='+encodeURIComponent(q))
   .then(function(r){return r.ok?r.json():[];})
-  .then(function(a){if(a&&a.length){flyToPlace(parseFloat(a[0].lat),parseFloat(a[0].lon),(a[0].display_name||q).split(',')[0]);}else{toast('Place not found: '+q);}})
+  .then(function(a){if(a&&a.length){var la=parseFloat(a[0].lat),lo=parseFloat(a[0].lon),nm=(a[0].display_name||q).split(',')[0];flyToPlace(la,lo,nm);showCheapestNear(la,lo,nm,true);}else{toast('Place not found: '+q);}})
   .catch(function(){toast('Search unavailable on this network \u2014 try a major city name.');});
 }
-(function(){var b=el('searchBtn'),i=el('searchInput');if(b)b.addEventListener('click',doSearch);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doSearch();}});})();
+(function(){var b=el('searchBtn'),i=el('searchInput'),c=el('searchClear');
+ if(b)b.addEventListener('click',doSearch);
+ if(i){i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doSearch();}});i.addEventListener('input',function(){if(c)c.hidden=!i.value;});}
+ if(c)c.addEventListener('click',function(){if(i){i.value='';i.focus();}c.hidden=true;if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}map.closePopup();});
+})();
 fetch('data/history.json?v='+Date.now()).then(function(r){return r.ok?r.json():{days:[]};}).then(function(j){HISTORY=(j&&j.days)?j:{days:[]};if(currentView==='trends')buildTrends();}).catch(function(){});
 
 /* ---- Feature 1: export current view to CSV ---- */
@@ -1025,34 +1055,43 @@ function csvEsc(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replac
 
 /* ---- Feature 2: cheapest priced stations near a clicked point ---- */
 function haversineKm(a,b,c,d){var R=6371,T=Math.PI/180;var dLa=(c-a)*T,dLo=(d-b)*T;var s1=Math.sin(dLa/2),s2=Math.sin(dLo/2);var x=s1*s1+Math.cos(a*T)*Math.cos(c*T)*s2*s2;return 2*R*Math.asin(Math.sqrt(x));}
-var nearMode=false;
-(function(){var b=el('nearBtn');if(!b)return;b.addEventListener('click',function(){
- nearMode=!nearMode;b.classList.toggle('on',nearMode);var mp=el('map');if(mp)mp.style.cursor=nearMode?'crosshair':'';
- if(nearMode)toast('Click a point on the map to find the cheapest '+currentFuel+' nearby');
-});})();
-map.on('click',function(e){
- if(!nearMode)return;
- nearMode=false;var b=el('nearBtn');if(b)b.classList.remove('on');var mp=el('map');if(mp)mp.style.cursor='';
- var R=80,cand=[];
+var nearMode=false, currentRadius=80;
+function nationalAvg(cc){var a=(AVG[currentFuel]&&AVG[currentFuel][cc])||(MANUAL[currentFuel]&&MANUAL[currentFuel][cc]);return a||null;}
+function showCheapestNear(lat,lng,label,silentIfEmpty){
+ var R=currentRadius,cand=[];
  (stations[currentFuel]||[]).forEach(function(s){
   if(s.p==null||!COUNTRY_ON[s.cc])return;
   if(currentFuel==='ev'&&evMinKw&&(s.kw||0)<evMinKw)return;
-  var dk=haversineKm(e.latlng.lat,e.latlng.lng,s.lat,s.lng);
-  if(dk<=R)cand.push({s:s,d:dk});
+  var dk=haversineKm(lat,lng,s.lat,s.lng);if(dk<=R)cand.push({s:s,d:dk});
  });
- if(!cand.length){toast('No priced '+currentFuel+' stations within '+R+' km of that point');return;}
+ if(!cand.length){if(!silentIfEmpty)toast('No priced '+currentFuel+' within '+R+' km'+(label?' of '+label:''));return;}
  cand.sort(function(a,c){return a.s.p-c.s.p;});
- var top=cand.slice(0,5),m=META[currentFuel];
- var html='<div class="fm-pop"><div class="nm">Cheapest '+currentFuel.toUpperCase()+' within '+R+' km</div>';
+ var top=cand.slice(0,6);
+ var html='<div class="fm-pop"><div class="nm">Cheapest '+currentFuel.toUpperCase()+' within '+R+' km'+(label?' \u00b7 '+esc(label):'')+'</div>';
  top.forEach(function(o,i){
+  var av=nationalAvg(o.s.cc),save=av?((av-o.s.p)*100):null;
+  var sv=(save!=null&&save>0.5)?'<span class="nearsave">\u2212\u20ac'+save.toFixed(0)+'/100L</span>':'';
   html+='<div class="nearrow"><span class="nearrank">'+(i+1)+'</span>'+
    '<span class="nearname">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km</small></span>'+
-   '<span class="nearprice">\u20ac'+fmtP(o.s.p)+'</span>'+
+   '<span class="nearprice">\u20ac'+fmtP(o.s.p)+sv+'</span>'+
    '<a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
  });
  html+='</div>';
- L.popup({maxWidth:330}).setLatLng(e.latlng).setContent(html).openOn(map);
-});
+ L.popup({maxWidth:340}).setLatLng([lat,lng]).setContent(html).openOn(map);
+}
+function closeCheap(){nearMode=false;var b=el('nearBtn'),p=el('cheapPanel'),mp=el('map');if(b){b.classList.remove('on');b.setAttribute('aria-expanded','false');}if(p)p.hidden=true;if(mp)mp.style.cursor='';}
+(function(){
+ var b=el('nearBtn'),p=el('cheapPanel');if(!b||!p)return;
+ b.addEventListener('click',function(e){e.stopPropagation();if(p.hidden){p.hidden=false;b.setAttribute('aria-expanded','true');b.classList.add('on');nearMode=true;var mp=el('map');if(mp)mp.style.cursor='crosshair';}else{closeCheap();}});
+ var rad=el('cheapRad');if(rad)rad.addEventListener('click',function(e){var t=e.target.closest?e.target.closest('button'):null;if(!t)return;currentRadius=+t.getAttribute('data-r');Array.prototype.forEach.call(rad.children,function(x){x.classList.toggle('on',x===t);});});
+ var g=el('geoBtn');if(g)g.addEventListener('click',function(){
+  if(!navigator.geolocation){toast('Location not available on this device');return;}
+  toast('Getting your location\u2026');
+  navigator.geolocation.getCurrentPosition(function(pos){var la=pos.coords.latitude,lo=pos.coords.longitude;closeCheap();flyToPlace(la,lo,'My location');showCheapestNear(la,lo,'my location',false);},function(){toast('Could not get your location \u2014 allow access, or click the map.');},{enableHighAccuracy:true,timeout:9000,maximumAge:60000});
+ });
+ document.addEventListener('click',function(e){if(!p.hidden&&!p.contains(e.target)&&!b.contains(e.target)){if(e.target.closest&&e.target.closest('#map'))return;p.hidden=true;b.setAttribute('aria-expanded','false');}});
+})();
+map.on('click',function(e){ if(!nearMode)return; closeCheap(); showCheapestNear(e.latlng.lat,e.latlng.lng,null,false); });
 
 /* ---------------- live data loader ---------------- */
 function refreshBadges(){
