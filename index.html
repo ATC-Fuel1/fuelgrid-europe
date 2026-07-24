@@ -49,7 +49,8 @@
   .seg{display:flex;background:var(--sign);border-radius:12px;padding:4px;gap:4px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
   .fseg{margin-left:18px;position:relative}
   .fseg::before{content:'';position:absolute;left:-9px;top:50%;transform:translateY(-50%);height:22px;width:1px;background:rgba(255,255,255,.18)}
-  .powseg{flex-basis:100%;margin-top:6px;display:none}
+  .powseg{flex-basis:100%;margin-top:6px;display:none;order:20}
+  .head-right{order:10}
   .powseg.show{display:flex}
   .powseg button{font-size:11.5px}
   .cseg{flex-wrap:wrap;max-width:600px}
@@ -277,7 +278,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.2</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.3</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -430,7 +431,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.2';
+var APP_VER='4.3';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
