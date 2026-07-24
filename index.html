@@ -277,7 +277,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.1</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.2</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -430,7 +430,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.1';
+var APP_VER='4.2';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -649,8 +649,10 @@ var MANUAL={};
 function fmtP(p){return p.toFixed(META[currentFuel].dec);}
 function relDelta(s){var a=AVG[currentFuel][s.cc];return a?(s.p-a)/a:0;}
 function deltaStatus(d){return d<=-0.015?'green':(d>=0.015?'red':'amber');}
+function evBand(p){return p<=0.40?'green':(p<=0.60?'amber':'red');}
 function statusLabel(k,mode){
  if(k==='gray')return currentFuel==='ev'?'Tariff varies':'No price';
+ if(currentFuel==='ev')return k==='green'?'Lower price/kWh':(k==='red'?'Higher price/kWh':'Typical price/kWh');
  if(mode==='station')return k==='green'?'Cheapest \u2153 in view':(k==='red'?'Priciest \u2153 in view':'Middle \u2153');
  return k==='green'?'Below national avg':(k==='red'?'Above national avg':'Around national avg');
 }
@@ -663,12 +665,12 @@ function popupHtml(s,mode){
  if(s.p==null){
   html+='<div class="price" style="font-size:15px;color:#5d6779">'+(currentFuel==='ev'?'Tariff varies by operator / plan':'No price \u2014 location only')+'<span class="pill s-gray">n/a</span></div>';
  }else{
-  var st=colorFor?colorFor(s):{k:deltaStatus(relDelta(s))};
+  var st=colorFor?colorFor(s):{k:(currentFuel==='ev'?evBand(s.p):deltaStatus(relDelta(s)))};
   html+='<div class="price">\u20ac'+fmtP(s.p)+' <small>'+m.unit.slice(1)+'</small><span class="pill s-'+st.k+'">'+statusLabel(st.k,mode)+'</span></div>';
  }
  html+='<div class="row">'+C.flag+' '+C.name+' \u00b7 '+loc+'</div>';
  if(currentFuel==='ev')html+='<div class="row">'+s.ty+' \u00b7 '+s.kw+' kW \u00b7 '+s.plugs+' bays</div>';
- if(s.p!=null){
+ if(s.p!=null&&currentFuel!=='ev'){
   var d=relDelta(s)*100;
   html+='<div class="row">vs national avg: '+(d>=0?'+':'')+d.toFixed(1)+'%</div>';
  }
@@ -705,13 +707,17 @@ function refreshCore(){
  colorFor=null;
 
  if(mode==='station'){
-  var sorted=strictPriced.slice().sort(function(a,c){return a.p-c.p;});
-  if(sorted.length>=6){
-   var q1=sorted[Math.floor(sorted.length/3)].p;
-   var q2=sorted[Math.floor(2*sorted.length/3)].p;
-   colorFor=function(st){var k=st.p<=q1?'green':(st.p>=q2?'red':'amber');return{k:k,c:COLORS[k]};};
+  if(currentFuel==='ev'){
+   colorFor=function(st){var k=evBand(st.p);return{k:k,c:COLORS[k]};};
   }else{
-   colorFor=function(st){var k=deltaStatus(relDelta(st));return{k:k,c:COLORS[k]};};
+   var sorted=strictPriced.slice().sort(function(a,c){return a.p-c.p;});
+   if(sorted.length>=6){
+    var q1=sorted[Math.floor(sorted.length/3)].p;
+    var q2=sorted[Math.floor(2*sorted.length/3)].p;
+    colorFor=function(st){var k=st.p<=q1?'green':(st.p>=q2?'red':'amber');return{k:k,c:COLORS[k]};};
+   }else{
+    colorFor=function(st){var k=deltaStatus(relDelta(st));return{k:k,c:COLORS[k]};};
+   }
   }
   var dr=z>=13.5?6:(z>=11.5?5:4.2);
   pad.forEach(function(st){
@@ -744,7 +750,7 @@ function refreshCore(){
    var c=cells[key];
    var la=c.sla/c.n,lo=c.slo/c.n;
    var k,d=0,avgP=null,label;
-   if(c.np>0){avgP=c.sp/c.np;d=c.sd/c.np;k=deltaStatus(d);label=avgP.toFixed(2);}
+   if(c.np>0){avgP=c.sp/c.np;d=c.sd/c.np;k=(currentFuel==='ev'?evBand(avgP):deltaStatus(d));label=avgP.toFixed(2);}
    else{k='gray';label=String(c.n);}
    var isGray=(k==='gray');
    if(isGray && MANUAL[currentFuel] && MANUAL[currentFuel][c.cc]) return; /* shown as one country-average bubble instead */
@@ -1069,11 +1075,9 @@ function showCheapestNear(lat,lng,label,silentIfEmpty){
  var top=cand.slice(0,6);
  var html='<div class="fm-pop"><div class="nm">Cheapest '+currentFuel.toUpperCase()+' within '+R+' km'+(label?' \u00b7 '+esc(label):'')+'</div>';
  top.forEach(function(o,i){
-  var av=nationalAvg(o.s.cc),save=av?((av-o.s.p)*100):null;
-  var sv=(save!=null&&save>0.5)?'<span class="nearsave">\u2212\u20ac'+save.toFixed(0)+'/100L</span>':'';
   html+='<div class="nearrow"><span class="nearrank">'+(i+1)+'</span>'+
    '<span class="nearname">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km</small></span>'+
-   '<span class="nearprice">\u20ac'+fmtP(o.s.p)+sv+'</span>'+
+   '<span class="nearprice">\u20ac'+fmtP(o.s.p)+'</span>'+
    '<a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
  });
  html+='</div>';
