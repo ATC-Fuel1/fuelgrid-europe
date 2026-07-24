@@ -125,6 +125,14 @@
   .fm-pop .gps{font-variant-numeric:tabular-nums;font-size:12px;color:#42506a;font-weight:600}
   .fm-pop .gpscopy{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:#2a3550;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:7px;cursor:pointer}
   .fm-pop .gpscopy:hover{background:#e7edf7}
+  .fm-pop .gpsbtns{display:inline-flex;gap:6px;align-items:center}
+  .fm-pop .gpsdir{font-size:10.5px;font-weight:700;text-decoration:none;background:#1a56c4;color:#fff;padding:3px 9px;border-radius:7px}
+  .fm-pop .gpsdir:hover{background:#1546a0}
+  .fm-pop .nearrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(16,24,40,.08)}
+  .fm-pop .nearrank{width:18px;height:18px;flex:0 0 18px;border-radius:50%;background:#eef2fb;color:#2a3550;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .fm-pop .nearname{flex:1;font-size:12px;line-height:1.25}
+  .fm-pop .nearprice{font-weight:800;color:#12a150;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .btn-ghost.on{background:rgba(26,86,196,.28);border-color:rgba(159,180,232,.6)}
 
   /* Popups */
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
@@ -231,7 +239,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.7</span>
+    <span class="ver">v3.8</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -258,6 +266,8 @@
   </nav>
   <div class="head-right">
     <span class="snapshot" id="snapshot">Loading live data…</span>
+    <button class="btn-ghost" id="nearBtn" title="Find the cheapest stations near a point on the map">◎ Cheapest</button>
+    <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ CSV</button>
     <button class="btn-ghost" id="srcBtn">Sources</button>
   </div>
 </header>
@@ -362,7 +372,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.7';
+var APP_VER='3.8';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -562,6 +572,7 @@ setTimeout(fitMap,50);setTimeout(fitMap,400);
 var stationLayer=L.layerGroup().addTo(map);
 var aggLayer=L.layerGroup().addTo(map);
 var STATION_ZOOM=10;
+var lastView=[];
 var currentFuel='diesel';
 var evMinKw=0;
 var META={
@@ -603,7 +614,7 @@ function popupHtml(s,mode){
   html+='<div class="row">vs national avg: '+(d>=0?'+':'')+d.toFixed(1)+'%</div>';
  }
  var gps=s.lat.toFixed(5)+", "+s.lng.toFixed(5);
- html+='<div class="row gpsrow"><span class="gps">\uD83D\uDCCD '+gps+'</span><button class="gpscopy" data-gps="'+gps+'" title="Copy coordinates">Copy</button></div>';
+ html+='<div class="row gpsrow"><span class="gps">\uD83D\uDCCD '+gps+'</span><span class="gpsbtns"><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng+'">Directions</a><button class="gpscopy" data-gps="'+gps+'" title="Copy coordinates">Copy</button></span></div>';
  html+='<div class="foot">Updated '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'no live data for this fuel')+'</div></div>';
  return html;
 }
@@ -629,6 +640,7 @@ function refreshCore(){
   pad.push(s);
   if(s.lat>=sS&&s.lat<=sN&&s.lng>=sW&&s.lng<=sE){strict.push(s);if(s.p!=null)strictPriced.push(s);}
  }
+ lastView=strict;
  if(mode==='station'&&pad.length>3500)mode='agg';
  stationLayer.clearLayers();aggLayer.clearLayers();
  colorFor=null;
@@ -892,6 +904,51 @@ document.addEventListener("click",function(e){
  function done(){var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o;},1200);}
  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(g).then(done,done);}
  else{try{var ta=document.createElement("textarea");ta.value=g;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);done();}catch(_){}}
+});
+
+/* ---- Feature 1: export current view to CSV ---- */
+function csvEsc(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+(function(){var b=el('csvBtn');if(!b)return;b.addEventListener('click',function(){
+ var rows=[['name','brand','country','lat','lng','price_eur','unit','fuel','power_kw','type','updated']];
+ (lastView||[]).forEach(function(s){
+  rows.push([s.name,s.brand||'',s.cc,s.lat,s.lng,(s.p==null?'':s.p),META[currentFuel].unit.slice(1),currentFuel.toUpperCase(),(currentFuel==='ev'?(s.kw||''):''),(s.mwy?'motorway':'local'),SNAP]);
+ });
+ var csv=rows.map(function(r){return r.map(csvEsc).join(',');}).join('\n');
+ var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);
+ var a=document.createElement('a');a.href=url;a.download='fuelgrid_'+currentFuel+'_'+(new Date().toISOString().slice(0,10))+'.csv';
+ document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+ toast('Exported '+((lastView||[]).length)+' stations (current view) to CSV');
+});})();
+
+/* ---- Feature 2: cheapest priced stations near a clicked point ---- */
+function haversineKm(a,b,c,d){var R=6371,T=Math.PI/180;var dLa=(c-a)*T,dLo=(d-b)*T;var s1=Math.sin(dLa/2),s2=Math.sin(dLo/2);var x=s1*s1+Math.cos(a*T)*Math.cos(c*T)*s2*s2;return 2*R*Math.asin(Math.sqrt(x));}
+var nearMode=false;
+(function(){var b=el('nearBtn');if(!b)return;b.addEventListener('click',function(){
+ nearMode=!nearMode;b.classList.toggle('on',nearMode);var mp=el('map');if(mp)mp.style.cursor=nearMode?'crosshair':'';
+ if(nearMode)toast('Click a point on the map to find the cheapest '+currentFuel+' nearby');
+});})();
+map.on('click',function(e){
+ if(!nearMode)return;
+ nearMode=false;var b=el('nearBtn');if(b)b.classList.remove('on');var mp=el('map');if(mp)mp.style.cursor='';
+ var R=80,cand=[];
+ (stations[currentFuel]||[]).forEach(function(s){
+  if(s.p==null||!COUNTRY_ON[s.cc])return;
+  if(currentFuel==='ev'&&evMinKw&&(s.kw||0)<evMinKw)return;
+  var dk=haversineKm(e.latlng.lat,e.latlng.lng,s.lat,s.lng);
+  if(dk<=R)cand.push({s:s,d:dk});
+ });
+ if(!cand.length){toast('No priced '+currentFuel+' stations within '+R+' km of that point');return;}
+ cand.sort(function(a,c){return a.s.p-c.s.p;});
+ var top=cand.slice(0,5),m=META[currentFuel];
+ var html='<div class="fm-pop"><div class="nm">Cheapest '+currentFuel.toUpperCase()+' within '+R+' km</div>';
+ top.forEach(function(o,i){
+  html+='<div class="nearrow"><span class="nearrank">'+(i+1)+'</span>'+
+   '<span class="nearname">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km</small></span>'+
+   '<span class="nearprice">\u20ac'+fmtP(o.s.p)+'</span>'+
+   '<a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
+ });
+ html+='</div>';
+ L.popup({maxWidth:330}).setLatLng(e.latlng).setContent(html).openOn(map);
 });
 
 /* ---------------- live data loader ---------------- */
