@@ -121,6 +121,10 @@
   .agg.s-red{background:rgba(229,72,77,.93)}
   .agg.s-gray{background:rgba(150,159,174,.80);border-width:1.5px;border-color:rgba(255,255,255,.85);box-shadow:0 1px 4px rgba(16,24,40,.16)}
   .agg.s-avg{background:rgba(59,76,104,.97);border-style:dashed;border-width:3px}
+  .fm-pop .gpsrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .fm-pop .gps{font-variant-numeric:tabular-nums;font-size:12px;color:#42506a;font-weight:600}
+  .fm-pop .gpscopy{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:#2a3550;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:7px;cursor:pointer}
+  .fm-pop .gpscopy:hover{background:#e7edf7}
 
   /* Popups */
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
@@ -227,7 +231,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <h1>FuelGrid Europe</h1>
-    <span class="ver">v3.6</span>
+    <span class="ver">v3.7</span>
   </div>
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
@@ -358,7 +362,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='3.6';
+var APP_VER='3.7';
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -598,6 +602,8 @@ function popupHtml(s,mode){
   var d=relDelta(s)*100;
   html+='<div class="row">vs national avg: '+(d>=0?'+':'')+d.toFixed(1)+'%</div>';
  }
+ var gps=s.lat.toFixed(5)+", "+s.lng.toFixed(5);
+ html+='<div class="row gpsrow"><span class="gps">\uD83D\uDCCD '+gps+'</span><button class="gpscopy" data-gps="'+gps+'" title="Copy coordinates">Copy</button></div>';
  html+='<div class="foot">Updated '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'no live data for this fuel')+'</div></div>';
  return html;
 }
@@ -879,6 +885,14 @@ el('srcBtn2').addEventListener('click',openModal);
 el('modalClose').addEventListener('click',closeModal);
 el('modalBg').addEventListener('click',function(e){if(e.target===el('modalBg'))closeModal();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+document.addEventListener("click",function(e){
+ var b=e.target&&e.target.closest?e.target.closest(".gpscopy"):null;if(!b)return;
+ var g=b.getAttribute("data-gps");
+ function done(){var o=b.textContent;b.textContent="Copied";setTimeout(function(){b.textContent=o;},1200);}
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(g).then(done,done);}
+ else{try{var ta=document.createElement("textarea");ta.value=g;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);done();}catch(_){}}
+});
 
 /* ---------------- live data loader ---------------- */
 function refreshBadges(){
