@@ -161,6 +161,24 @@
   .searchPin .spin{width:16px;height:16px;border-radius:50%;background:#1a56c4;border:3px solid #fff;box-shadow:0 0 0 3px rgba(26,86,196,.35)}
   .searchbox .searchclear{background:transparent;border:0;color:rgba(255,255,255,.75);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px}
   .searchbox .searchclear:hover{color:#fff}
+  .route-wrap{position:relative}
+  .route-panel{position:absolute;top:calc(100% + 8px);right:0;z-index:1200;width:300px;max-width:92vw;background:#fff;border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.28);border:1px solid rgba(16,24,40,.08);padding:12px}
+  .route-panel[hidden]{display:none}
+  .route-head{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--sign-dark);margin-bottom:9px}
+  .route-panel input{width:100%;box-sizing:border-box;border:1px solid rgba(16,24,40,.18);border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:7px;color:var(--sign-dark)}
+  .route-actions{display:flex;gap:7px;margin-bottom:4px}
+  #routeFind{flex:1;border:0;background:#1a56c4;color:#fff;font-size:12.5px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
+  #routeFind:hover{background:#1546a0}
+  .route-clear{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .route-result{max-height:44vh;overflow:auto}
+  .route-summary{font-size:13px;font-weight:800;color:var(--sign-dark);margin:8px 0}
+  .route-flag{background:#fff7e6;border:1px solid #f2d9a0;color:#8a5a00;font-size:11.5px;line-height:1.35;border-radius:8px;padding:8px 10px;margin-bottom:9px}
+  .route-listhead{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#8a94a6;margin:4px 0 6px}
+  .route-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(16,24,40,.08)}
+  .route-rank{width:18px;height:18px;flex:0 0 18px;border-radius:50%;background:#eef2fb;color:#2a3550;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .route-name{flex:1;font-size:12px;line-height:1.25;color:var(--sign-dark)}
+  .route-price{font-weight:800;color:#12a150;font-variant-numeric:tabular-nums}
+  .route-msg{font-size:12px;color:#5d6779;padding:6px 0}
   .brand-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
   .brand-row{display:flex;align-items:center;gap:8px}
   .cheap-wrap{position:relative}
@@ -282,7 +300,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.4</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.5</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -315,6 +333,16 @@
   </nav>
   <div class="head-right">
     <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
+    <div class="route-wrap">
+      <button class="btn-ghost" id="routeBtn" title="Plan a truck route by fuel">🛣 Route</button>
+      <div class="route-panel" id="routePanel" hidden>
+        <div class="route-head">Truck route by fuel (&gt;3.5t)</div>
+        <input id="routeFrom" type="text" placeholder="From (city)" autocomplete="off" spellcheck="false">
+        <input id="routeTo" type="text" placeholder="To (city)" autocomplete="off" spellcheck="false">
+        <div class="route-actions"><button id="routeFind">Find route</button><button id="routeClear" class="route-clear">Clear</button></div>
+        <div id="routeResult" class="route-result"></div>
+      </div>
+    </div>
     <div class="cheap-wrap">
       <button class="btn-ghost" id="nearBtn" aria-expanded="false" title="Find the cheapest fuel near a point">◎ Cheapest</button>
       <div class="cheap-panel" id="cheapPanel" hidden>
@@ -435,7 +463,8 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.4';
+var APP_VER='4.5';
+var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
@@ -1030,6 +1059,88 @@ function buildTrends(){
  });});})();
 var searchMarker=null;
 var CITY={dublin:[53.3498,-6.2603],cork:[51.8985,-8.4756],galway:[53.2707,-9.0568],amsterdam:[52.3676,4.9041],rotterdam:[51.9244,4.4777],london:[51.5074,-0.1278],manchester:[53.4808,-2.2426],birmingham:[52.4862,-1.8904],glasgow:[55.8642,-4.2518],paris:[48.8566,2.3522],lyon:[45.7640,4.8357],marseille:[43.2965,5.3698],lille:[50.6292,3.0573],madrid:[40.4168,-3.7038],barcelona:[41.3874,2.1686],valencia:[39.4699,-0.3763],seville:[37.3891,-5.9845],bilbao:[43.2630,-2.9350],berlin:[52.5200,13.4050],munich:[48.1351,11.5820],hamburg:[53.5511,9.9937],frankfurt:[50.1109,8.6821],cologne:[50.9375,6.9603],stuttgart:[48.7758,9.1829],rome:[41.9028,12.4964],milan:[45.4642,9.1900],naples:[40.8518,14.2681],turin:[45.0703,7.6869],vienna:[48.2082,16.3738],brussels:[50.8503,4.3517],antwerp:[51.2194,4.4025],luxembourg:[49.6116,6.1319],zurich:[47.3769,8.5417],geneva:[46.2044,6.1432],prague:[50.0755,14.4378],bratislava:[48.1486,17.1077],budapest:[47.4979,19.0402],warsaw:[52.2297,21.0122],krakow:[50.0647,19.9450],gdansk:[54.3520,18.6466],wroclaw:[51.1079,17.0385],stockholm:[59.3293,18.0686],gothenburg:[57.7089,11.9746],malmo:[55.6050,13.0038],copenhagen:[55.6761,12.5683],oslo:[59.9139,10.7522],lisbon:[38.7223,-9.1393],porto:[41.1579,-8.6291],ljubljana:[46.0569,14.5058],zagreb:[45.8150,15.9819],bucharest:[44.4268,26.1025]};
+function geocode(q,cb){
+ var key=(q||'').toLowerCase().trim().replace(/\s+/g,' ');
+ if(CITY[key]){cb(CITY[key][0],CITY[key][1],q);return;}
+ var cc=CC_ORDER.join(',').toLowerCase();
+ fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes='+cc+'&q='+encodeURIComponent(q))
+  .then(function(r){return r.ok?r.json():[];})
+  .then(function(a){if(a&&a.length)cb(parseFloat(a[0].lat),parseFloat(a[0].lon),(a[0].display_name||q).split(',')[0]);else cb(null);})
+  .catch(function(){cb(null);});
+}
+var routeLayer=null;
+function findRoute(){
+ if(!ORS_KEY||ORS_KEY.indexOf('PASTE')>=0){
+  var k=prompt('Paste your OpenRouteService API key (free from openrouteservice.org). It is stored only on this device.');
+  if(!k)return; ORS_KEY=k.trim(); try{localStorage.setItem('fg_ors_key',ORS_KEY);}catch(e){}
+ }
+ var f=(el('routeFrom').value||'').trim(),t=(el('routeTo').value||'').trim();
+ if(!f||!t){el('routeResult').innerHTML='<div class="route-msg">Enter both a From and a To city.</div>';return;}
+ el('routeResult').innerHTML='<div class="route-msg">Finding route\u2026</div>';
+ geocode(f,function(fla,flo){
+  if(fla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(f)+'\u201d.</div>';return;}
+  geocode(t,function(tla,tlo){
+   if(tla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(t)+'\u201d.</div>';return;}
+   var url='https://api.openrouteservice.org/v2/directions/driving-hgv?api_key='+ORS_KEY+'&start='+flo+','+fla+'&end='+tlo+','+tla;
+   fetch(url).then(function(r){return r.json();}).then(function(j){
+    if(!j||!j.features||!j.features.length){el('routeResult').innerHTML='<div class="route-msg">No truck route found (check the key or the city names).</div>';return;}
+    drawRoute(j.features[0].geometry.coordinates,j.features[0].properties.summary);
+   }).catch(function(){el('routeResult').innerHTML='<div class="route-msg">Routing failed (network).</div>';});
+  });
+ });
+}
+function drawRoute(coords,sum){
+ if(routeLayer)map.removeLayer(routeLayer);
+ var latlngs=coords.map(function(c){return [c[1],c[0]];});
+ routeLayer=L.polyline(latlngs,{color:'#1a56c4',weight:5,opacity:.8}).addTo(map);
+ try{map.fitBounds(routeLayer.getBounds().pad(0.12));}catch(e){}
+ analyseRoute(latlngs,sum);
+}
+function analyseRoute(latlngs,sum){
+ var step=Math.max(1,Math.floor(latlngs.length/250));
+ var samples=[];for(var i=0;i<latlngs.length;i+=step)samples.push(latlngs[i]);
+ samples.push(latlngs[latlngs.length-1]);
+ var minLa=90,maxLa=-90,minLo=180,maxLo=-180;
+ samples.forEach(function(p){if(p[0]<minLa)minLa=p[0];if(p[0]>maxLa)maxLa=p[0];if(p[1]<minLo)minLo=p[1];if(p[1]>maxLo)maxLo=p[1];});
+ var pad=0.25,R=8,near=[];
+ (stations[currentFuel]||[]).forEach(function(s){
+  if(s.p==null||!COUNTRY_ON[s.cc])return;
+  if(s.lat<minLa-pad||s.lat>maxLa+pad||s.lng<minLo-pad||s.lng>maxLo+pad)return;
+  var best=1e9;for(var k=0;k<samples.length;k++){var d=haversineKm(s.lat,s.lng,samples[k][0],samples[k][1]);if(d<best){best=d;if(best<=R)break;}}
+  if(best<=R)near.push({s:s,d:best});
+ });
+ near.sort(function(a,b){return a.s.p-b.s.p;});
+ var dIn=(stations['diesel']||[]).filter(function(s){return !(s.lat<minLa-pad||s.lat>maxLa+pad||s.lng<minLo-pad||s.lng>maxLo+pad);});
+ var crossed={};
+ samples.forEach(function(p){var best=1e9,bcc=null;for(var k=0;k<dIn.length;k++){var st=dIn[k];var d=haversineKm(p[0],p[1],st.lat,st.lng);if(d<best){best=d;bcc=st.cc;}}if(bcc)crossed[bcc]=true;});
+ var pricedByCc={};(stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedByCc[s.cc]=1;});
+ var flagged=Object.keys(crossed).filter(function(cc){return !pricedByCc[cc];});
+ renderRoute(near.slice(0,8),flagged,sum);
+}
+function renderRoute(near,flagged,sum){
+ var km=Math.round(sum.distance/1000),hrs=(sum.duration/3600);
+ var h='<div class="route-summary">'+km+' km \u00b7 ~'+hrs.toFixed(1)+' h (truck)</div>';
+ if(flagged.length){
+  var names=flagged.map(function(cc){return (COUNTRY[cc]||{name:cc}).name;}).join(', ');
+  h+='<div class="route-flag">\u26A0 Per-station prices are not published in: <b>'+esc(names)+'</b>. Those sections show the national average only \u2014 not exact station prices.</div>';
+ }
+ if(near.length){
+  h+='<div class="route-listhead">Cheapest '+currentFuel.toUpperCase()+' along the route</div>';
+  near.forEach(function(o,i){
+   h+='<div class="route-row"><span class="route-rank">'+(i+1)+'</span><span class="route-name">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km off route</small></span><span class="route-price">\u20ac'+fmtP(o.s.p)+'</span><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
+  });
+ }else{
+  h+='<div class="route-msg">No priced '+currentFuel+' stations found within 8 km of this route.</div>';
+ }
+ el('routeResult').innerHTML=h;
+}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+(function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
+ b.addEventListener('click',function(e){e.stopPropagation();p.hidden=!p.hidden;b.classList.toggle('on',!p.hidden);});
+ var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
+ var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
+ ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
+})();
 function flyToPlace(lat,lng,label){
  if(currentView!=='map'){var mb=document.querySelector('.viewseg button[data-view="map"]');if(mb)mb.click();}
  var z=Math.max(map.getZoom(),11);
