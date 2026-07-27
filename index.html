@@ -167,6 +167,8 @@
   .route-head{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--sign-dark);margin-bottom:9px}
   .route-panel input{width:100%;box-sizing:border-box;border:1px solid rgba(16,24,40,.18);border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:7px;color:var(--sign-dark)}
   .route-actions{display:flex;gap:7px;margin-bottom:4px}
+  .route-km{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5d6779;margin:0 0 8px}
+  .route-km input{width:56px;margin:0;padding:5px 7px;text-align:center;font-size:12px}
   #routeFind{flex:1;border:0;background:#1a56c4;color:#fff;font-size:12.5px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
   #routeFind:hover{background:#1546a0}
   .route-clear{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
@@ -280,6 +282,36 @@
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important;animation:none !important}
   }
+  .ac-wrap{position:relative}
+  .ac-list{position:absolute;left:0;right:0;top:calc(100% - 3px);background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:10px;box-shadow:0 12px 28px rgba(16,24,40,.20);z-index:1300;max-height:210px;overflow:auto}
+  .ac-list[hidden]{display:none}
+  .ac-item{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;font-size:12.5px;line-height:1.3;color:var(--sign-dark);cursor:pointer;border-bottom:1px solid rgba(16,24,40,.06)}
+  .ac-item:last-child{border-bottom:0}
+  .ac-item:hover{background:#f2f6fd}
+  .cheap-km{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5d6779;margin:0 0 9px}
+  .cheap-km input{width:64px;padding:5px 7px;text-align:center;font-size:12px;border:1px solid rgba(16,24,40,.18);border-radius:7px;color:var(--sign-dark)}
+
+  /* ---------- phone layout ---------- */
+  @media (max-width: 760px){
+    header{padding:7px 10px;gap:6px}
+    .brand h1{font-size:14px}
+    .ver{display:none}
+    .brand-txt .snapshot{display:inline-flex !important;font-size:9.5px}
+    .btn-ghost,.seg button{min-height:40px}
+    .searchbox{flex:1 1 140px}
+    .searchbox input{width:100%;font-size:16px}
+    .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;bottom:8px;top:auto;width:auto;max-width:none;max-height:74vh;overflow:auto;border-radius:16px;padding:14px}
+    .cty-grid{grid-template-columns:repeat(2,1fr);max-height:44vh}
+    .cty-grid .cbtn{padding:9px 8px;font-size:12px}
+    .route-panel input,.cheap-km input,.route-km input{font-size:16px}
+    .route-result{max-height:36vh}
+    .panel{left:8px !important;right:8px !important;width:auto !important;top:auto !important;bottom:8px !important;max-height:50vh}
+    .trend-grid{grid-template-columns:1fr}
+    .trends-inner{padding:16px 12px 32px}
+    .hint{display:none}
+    .cheap-rad button,.trend-period button{min-height:36px}
+    .fm-pop .gpsdir,.fm-pop .gpscopy{padding:6px 11px}
+  }
   @media (max-width: 860px){
     header{padding:8px 12px;gap:6px 8px}
     .seg{order:3;width:100%;margin-left:0;justify-content:stretch}
@@ -300,7 +332,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.5</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.7</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -337,8 +369,9 @@
       <button class="btn-ghost" id="routeBtn" title="Plan a truck route by fuel">🛣 Route</button>
       <div class="route-panel" id="routePanel" hidden>
         <div class="route-head">Truck route by fuel (&gt;3.5t)</div>
-        <input id="routeFrom" type="text" placeholder="From (city)" autocomplete="off" spellcheck="false">
-        <input id="routeTo" type="text" placeholder="To (city)" autocomplete="off" spellcheck="false">
+        <div class="ac-wrap"><input id="routeFrom" type="text" placeholder="From (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acFrom" hidden></div></div>
+        <div class="ac-wrap"><input id="routeTo" type="text" placeholder="To (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acTo" hidden></div></div>
+        <div class="route-km"><span>Stations within</span><input id="routeKm" type="number" value="8" min="1" max="200" step="1"><span>km of route</span></div>
         <div class="route-actions"><button id="routeFind">Find route</button><button id="routeClear" class="route-clear">Clear</button></div>
         <div id="routeResult" class="route-result"></div>
       </div>
@@ -348,6 +381,7 @@
       <div class="cheap-panel" id="cheapPanel" hidden>
         <div class="cheap-head">Cheapest fuel near…</div>
         <div class="cheap-rad" id="cheapRad"><button data-r="25">25 km</button><button data-r="50">50 km</button><button data-r="80" class="on">80 km</button><button data-r="100">100 km</button></div>
+        <div class="cheap-km"><span>or type</span><input id="cheapKm" type="number" min="1" max="500" step="1" value="80"><span>km</span></div>
         <button class="cheap-geo" id="geoBtn">📍 Use my location</button>
         <p class="cheap-hint">…or click any point on the map.</p>
       </div>
@@ -446,6 +480,9 @@
     <h4>Methodology &amp; updates</h4>
     <p>Everything refreshes automatically <b>every day at 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are the official EU weekly bulletin figures (or pinned indicative values for Norway and Switzerland), not station-level prices.</p>
 
+    <h4>Route planning (truck / HGV)</h4>
+    <p>🛣 Routes come from <b>OpenRouteService</b> (openrouteservice.org) using its heavy-goods-vehicle profile on <b>OpenStreetMap</b> road data — real routing that avoids general truck-restricted roads (it is not yet tuned to a specific vehicle’s weight/height). Prices shown along a route are the same official station data as the map, and any country the route crosses that does not publish per-station prices is flagged as national-average only. “km off route” is measured to the nearest sampled point on the route line (accurate to within a few km), and the country flag is inferred from the nearest station, so it may be approximate right at a border.</p>
+
     <h4>EV charging — all countries (community data)</h4>
     <p><b>Where it comes from:</b> ⚡ <b>Open Charge Map</b> (openchargemap.org), the largest open registry of charge points, covering all 21 countries in this tool. For every charger it gives location, power rating (kW), operator, and connector type (AC / DC / HPC).</p>
     <p style="margin-top:6px"><b>Limitations:</b> <span id="evPriceNote">Most chargers have no public price because EV tariffs depend on the driver’s charging plan or roaming contract.</span> No official live EV-price feed exists anywhere in Europe, so per-kWh price cannot be guaranteed and is shown only where an operator publishes it. Open Charge Map is community-maintained, so a few entries may be out of date. Location and power are reliable — that is what the Van/Truck/HPC power filter at the top uses.</p>
@@ -463,7 +500,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.5';
+var APP_VER='4.7';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1058,17 +1095,67 @@ function buildTrends(){
   if(isT)buildTrends();else{map.invalidateSize();}
  });});})();
 var searchMarker=null;
-var CITY={dublin:[53.3498,-6.2603],cork:[51.8985,-8.4756],galway:[53.2707,-9.0568],amsterdam:[52.3676,4.9041],rotterdam:[51.9244,4.4777],london:[51.5074,-0.1278],manchester:[53.4808,-2.2426],birmingham:[52.4862,-1.8904],glasgow:[55.8642,-4.2518],paris:[48.8566,2.3522],lyon:[45.7640,4.8357],marseille:[43.2965,5.3698],lille:[50.6292,3.0573],madrid:[40.4168,-3.7038],barcelona:[41.3874,2.1686],valencia:[39.4699,-0.3763],seville:[37.3891,-5.9845],bilbao:[43.2630,-2.9350],berlin:[52.5200,13.4050],munich:[48.1351,11.5820],hamburg:[53.5511,9.9937],frankfurt:[50.1109,8.6821],cologne:[50.9375,6.9603],stuttgart:[48.7758,9.1829],rome:[41.9028,12.4964],milan:[45.4642,9.1900],naples:[40.8518,14.2681],turin:[45.0703,7.6869],vienna:[48.2082,16.3738],brussels:[50.8503,4.3517],antwerp:[51.2194,4.4025],luxembourg:[49.6116,6.1319],zurich:[47.3769,8.5417],geneva:[46.2044,6.1432],prague:[50.0755,14.4378],bratislava:[48.1486,17.1077],budapest:[47.4979,19.0402],warsaw:[52.2297,21.0122],krakow:[50.0647,19.9450],gdansk:[54.3520,18.6466],wroclaw:[51.1079,17.0385],stockholm:[59.3293,18.0686],gothenburg:[57.7089,11.9746],malmo:[55.6050,13.0038],copenhagen:[55.6761,12.5683],oslo:[59.9139,10.7522],lisbon:[38.7223,-9.1393],porto:[41.1579,-8.6291],ljubljana:[46.0569,14.5058],zagreb:[45.8150,15.9819],bucharest:[44.4268,26.1025]};
+var CITY={dublin:[53.3498,-6.2603],cork:[51.8985,-8.4756],galway:[53.2707,-9.0568],amsterdam:[52.3676,4.9041],rotterdam:[51.9244,4.4777],london:[51.5074,-0.1278],manchester:[53.4808,-2.2426],birmingham:[52.4862,-1.8904],glasgow:[55.8642,-4.2518],paris:[48.8566,2.3522],lyon:[45.7640,4.8357],marseille:[43.2965,5.3698],lille:[50.6292,3.0573],madrid:[40.4168,-3.7038],barcelona:[41.3874,2.1686],valencia:[39.4699,-0.3763],seville:[37.3891,-5.9845],bilbao:[43.2630,-2.9350],berlin:[52.5200,13.4050],munich:[48.1351,11.5820],hamburg:[53.5511,9.9937],frankfurt:[50.1109,8.6821],cologne:[50.9375,6.9603],stuttgart:[48.7758,9.1829],rome:[41.9028,12.4964],milan:[45.4642,9.1900],naples:[40.8518,14.2681],turin:[45.0703,7.6869],vienna:[48.2082,16.3738],brussels:[50.8503,4.3517],antwerp:[51.2194,4.4025],luxembourg:[49.6116,6.1319],zurich:[47.3769,8.5417],geneva:[46.2044,6.1432],prague:[50.0755,14.4378],bratislava:[48.1486,17.1077],budapest:[47.4979,19.0402],warsaw:[52.2297,21.0122],krakow:[50.0647,19.9450],gdansk:[54.3520,18.6466],wroclaw:[51.1079,17.0385],stockholm:[59.3293,18.0686],gothenburg:[57.7089,11.9746],malmo:[55.6050,13.0038],copenhagen:[55.6761,12.5683],oslo:[59.9139,10.7522],lisbon:[38.7223,-9.1393],porto:[41.1579,-8.6291],ljubljana:[46.0569,14.5058],zagreb:[45.8150,15.9819],bucharest:[44.4268,26.1025],zaragoza:[41.6488,-0.8891],malaga:[36.7213,-4.4214],murcia:[37.9922,-1.1307],alicante:[38.3452,-0.4810],palma:[39.5696,2.6502],valladolid:[41.6523,-4.7245],vigo:[42.2406,-8.7207],gijon:[43.5322,-5.6611],pamplona:[42.8125,-1.6458],santander:[43.4623,-3.8100],burgos:[42.3439,-3.6969],leon:[42.5987,-5.5671],salamanca:[40.9701,-5.6635],cordoba:[37.8882,-4.7794],granada:[37.1773,-3.5986],almeria:[36.8340,-2.4637],cartagena:[37.6257,-0.9966],tarragona:[41.1189,1.2445],girona:[41.9794,2.8214],lleida:[41.6176,0.6200],huesca:[42.1401,-0.4089],logrono:[42.4627,-2.4450],badajoz:[38.8794,-6.9707],toledo:[39.8628,-4.0273],albacete:[38.9943,-1.8585],oviedo:[43.3619,-5.8494],algeciras:[36.1408,-5.4562],irun:[43.3378,-1.7888],bordeaux:[44.8378,-0.5792],toulouse:[43.6047,1.4442],nantes:[47.2184,-1.5536],strasbourg:[48.5734,7.7521],nice:[43.7102,7.2620],rennes:[48.1173,-1.6778],reims:[49.2583,4.0317],dijon:[47.3220,5.0415],metz:[49.1193,6.1757],nancy:[48.6921,6.1844],orleans:[47.9029,1.9093],tours:[47.3941,0.6848],montpellier:[43.6108,3.8767],perpignan:[42.6887,2.8948],grenoble:[45.1885,5.7245],avignon:[43.9493,4.8055],calais:[50.9513,1.8587],dunkirk:[51.0343,2.3768],rouen:[49.4432,1.0999],lehavre:[49.4944,0.1079],dortmund:[51.5136,7.4653],essen:[51.4556,7.0116],duisburg:[51.4344,6.7623],dusseldorf:[51.2277,6.7735],bremen:[53.0793,8.8017],hannover:[52.3759,9.7320],nuremberg:[49.4521,11.0767],leipzig:[51.3397,12.3731],dresden:[51.0504,13.7373],kassel:[51.3127,9.4797],mannheim:[49.4875,8.4660],karlsruhe:[49.0069,8.4037],freiburg:[47.9990,7.8421],ulm:[48.4011,9.9876],wurzburg:[49.7913,9.9534],magdeburg:[52.1205,11.6276],rostock:[54.0924,12.0991],kiel:[54.3233,10.1228],aachen:[50.7753,6.0839],bielefeld:[52.0302,8.5325],bologna:[44.4949,11.3426],florence:[43.7696,11.2558],venice:[45.4408,12.3155],verona:[45.4384,10.9916],genoa:[44.4056,8.9463],bari:[41.1171,16.8719],palermo:[38.1157,13.3615],catania:[37.5079,15.0830],padua:[45.4064,11.8768],brescia:[45.5416,10.2118],trieste:[45.6495,13.7768],parma:[44.8015,10.3279],modena:[44.6471,10.9252],salzburg:[47.8095,13.0550],graz:[47.0707,15.4395],linz:[48.3069,14.2858],innsbruck:[47.2692,11.4041],ghent:[51.0543,3.7174],bruges:[51.2093,3.2247],liege:[50.6326,5.5797],eindhoven:[51.4416,5.4697],utrecht:[52.0907,5.1214],thehague:[52.0705,4.3007],groningen:[53.2194,6.5665],breda:[51.5719,4.7683],tilburg:[51.5555,5.0913],arnhem:[51.9851,5.8987],maastricht:[50.8514,5.6910],venlo:[51.3704,6.1724],brno:[49.1951,16.6068],ostrava:[49.8209,18.2625],plzen:[49.7384,13.3736],kosice:[48.7164,21.2611],zilina:[49.2231,18.7394],debrecen:[47.5316,21.6273],szeged:[46.2530,20.1414],gyor:[47.6875,17.6504],komarom:[47.7433,18.1194],poznan:[52.4064,16.9252],lodz:[51.7592,19.4560],katowice:[50.2649,19.0238],szczecin:[53.4285,14.5528],lublin:[51.2465,22.5684],bydgoszcz:[53.1235,18.0084],aarhus:[56.1629,10.2039],odense:[55.4038,10.4024],aalborg:[57.0488,9.9217],uppsala:[59.8586,17.6389],bergen:[60.3913,5.3221],trondheim:[63.4305,10.3951],stavanger:[58.9700,5.7331],basel:[47.5596,7.5886],bern:[46.9480,7.4474],lausanne:[46.5197,6.6323],lugano:[46.0037,8.9511],cluj:[46.7712,23.6236],timisoara:[45.7489,21.2087],iasi:[47.1585,27.6014],constanta:[44.1598,28.6348],brasov:[45.6579,25.6012],maribor:[46.5547,15.6459],split:[43.5081,16.4402],rijeka:[45.3271,14.4422],limerick:[52.6638,-8.6267],belfast:[54.5973,-5.9301],leeds:[53.8008,-1.5491],sheffield:[53.3811,-1.4701],liverpool:[53.4084,-2.9916],bristol:[51.4545,-2.5879],cardiff:[51.4816,-3.1791],edinburgh:[55.9533,-3.1883],newcastle:[54.9783,-1.6178],nottingham:[52.9548,-1.1581],leicester:[52.6369,-1.1398],southampton:[50.9097,-1.4044],dover:[51.1279,1.3134],hull:[53.7457,-0.3367],felixstowe:[51.9640,1.3515]};
+function orsKeyOrNull(){return (ORS_KEY&&ORS_KEY.indexOf('PASTE')<0&&ORS_KEY.length>15)?ORS_KEY:null;}
 function geocode(q,cb){
- var key=(q||'').toLowerCase().trim().replace(/\s+/g,' ');
- if(CITY[key]){cb(CITY[key][0],CITY[key][1],q);return;}
- var cc=CC_ORDER.join(',').toLowerCase();
- fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes='+cc+'&q='+encodeURIComponent(q))
-  .then(function(r){return r.ok?r.json():[];})
-  .then(function(a){if(a&&a.length)cb(parseFloat(a[0].lat),parseFloat(a[0].lon),(a[0].display_name||q).split(',')[0]);else cb(null);})
-  .catch(function(){cb(null);});
+ var k=(q||'').toLowerCase().trim().replace(/\s+/g,' ');
+ if(CITY[k]){cb(CITY[k][0],CITY[k][1],q);return;}
+ if(CITY[k.replace(/\s+/g,'')]){var kk=k.replace(/\s+/g,'');cb(CITY[kk][0],CITY[kk][1],q);return;}
+ var key=orsKeyOrNull(),cc=CC_ORDER.join(',').toLowerCase();
+ function nominatim(){
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes='+cc+'&q='+encodeURIComponent(q))
+   .then(function(r){return r.ok?r.json():[];})
+   .then(function(a){if(a&&a.length)cb(parseFloat(a[0].lat),parseFloat(a[0].lon),(a[0].display_name||q).split(',')[0]);else cb(null);})
+   .catch(function(){cb(null);});
+ }
+ if(!key){nominatim();return;}
+ fetch('https://api.openrouteservice.org/geocode/search?api_key='+key+'&size=1&text='+encodeURIComponent(q))
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(j){
+   if(j&&j.features&&j.features.length){var f=j.features[0];cb(f.geometry.coordinates[1],f.geometry.coordinates[0],(f.properties&&(f.properties.name||f.properties.label))||q);}
+   else nominatim();
+  }).catch(function(){nominatim();});
 }
-var routeLayer=null;
+function titleCase(x){return x.replace(/(^|\s)\w/g,function(c){return c.toUpperCase();});}
+function suggestPlaces(text,cb){
+ var key=orsKeyOrNull();
+ if(!key){
+  var t=text.toLowerCase().replace(/\s+/g,''),out=[];
+  Object.keys(CITY).forEach(function(n){if(out.length<6&&n.indexOf(t)===0)out.push({label:titleCase(n),lat:CITY[n][0],lng:CITY[n][1]});});
+  cb(out);return;
+ }
+ fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key='+key+'&size=6&text='+encodeURIComponent(text))
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(j){var out=[];
+   if(j&&j.features)j.features.forEach(function(f){var p=f.properties||{};out.push({label:p.label||p.name||'',lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]});});
+   cb(out.filter(function(r){return r.label;}));
+  }).catch(function(){cb([]);});
+}
+function attachAC(inputId,listId){
+ var i=el(inputId),l=el(listId);if(!i||!l)return;var tm=null;
+ i.addEventListener('input',function(){
+  i.removeAttribute('data-lat');i.removeAttribute('data-lng');
+  var v=i.value.trim();if(tm)clearTimeout(tm);
+  if(v.length<2){l.hidden=true;l.innerHTML='';return;}
+  tm=setTimeout(function(){suggestPlaces(v,function(rows){
+   if(!rows.length){l.hidden=true;l.innerHTML='';return;}
+   l.innerHTML=rows.map(function(r,ix){return '<button type="button" class="ac-item" data-ix="'+ix+'">'+esc(r.label)+'</button>';}).join('');
+   l._rows=rows;l.hidden=false;
+  });},320);
+ });
+ l.addEventListener('mousedown',function(e){
+  var b=e.target.closest?e.target.closest('.ac-item'):null;if(!b)return;
+  e.preventDefault();
+  var r=(l._rows||[])[+b.getAttribute('data-ix')];if(!r)return;
+  i.value=r.label;i.setAttribute('data-lat',r.lat);i.setAttribute('data-lng',r.lng);
+  l.hidden=true;l.innerHTML='';
+ });
+ i.addEventListener('blur',function(){setTimeout(function(){l.hidden=true;},200);});
+}
+attachAC('routeFrom','acFrom');attachAC('routeTo','acTo');
+function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
+ if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
+var routeLayer=null,lastRoute=null;
 function findRoute(){
  if(!ORS_KEY||ORS_KEY.indexOf('PASTE')>=0){
   var k=prompt('Paste your OpenRouteService API key (free from openrouteservice.org). It is stored only on this device.');
@@ -1077,9 +1164,9 @@ function findRoute(){
  var f=(el('routeFrom').value||'').trim(),t=(el('routeTo').value||'').trim();
  if(!f||!t){el('routeResult').innerHTML='<div class="route-msg">Enter both a From and a To city.</div>';return;}
  el('routeResult').innerHTML='<div class="route-msg">Finding route\u2026</div>';
- geocode(f,function(fla,flo){
+ coordsOf('routeFrom',f,function(fla,flo){
   if(fla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(f)+'\u201d.</div>';return;}
-  geocode(t,function(tla,tlo){
+  coordsOf('routeTo',t,function(tla,tlo){
    if(tla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(t)+'\u201d.</div>';return;}
    var url='https://api.openrouteservice.org/v2/directions/driving-hgv?api_key='+ORS_KEY+'&start='+flo+','+fla+'&end='+tlo+','+tla;
    fetch(url).then(function(r){return r.json();}).then(function(j){
@@ -1094,6 +1181,7 @@ function drawRoute(coords,sum){
  var latlngs=coords.map(function(c){return [c[1],c[0]];});
  routeLayer=L.polyline(latlngs,{color:'#1a56c4',weight:5,opacity:.8}).addTo(map);
  try{map.fitBounds(routeLayer.getBounds().pad(0.12));}catch(e){}
+ lastRoute={latlngs:latlngs,sum:sum};
  analyseRoute(latlngs,sum);
 }
 function analyseRoute(latlngs,sum){
@@ -1102,7 +1190,8 @@ function analyseRoute(latlngs,sum){
  samples.push(latlngs[latlngs.length-1]);
  var minLa=90,maxLa=-90,minLo=180,maxLo=-180;
  samples.forEach(function(p){if(p[0]<minLa)minLa=p[0];if(p[0]>maxLa)maxLa=p[0];if(p[1]<minLo)minLo=p[1];if(p[1]>maxLo)maxLo=p[1];});
- var pad=0.25,R=8,near=[];
+ var R=Math.max(1,parseFloat((el('routeKm')||{}).value)||8);
+ var pad=R/111+0.15,near=[];
  (stations[currentFuel]||[]).forEach(function(s){
   if(s.p==null||!COUNTRY_ON[s.cc])return;
   if(s.lat<minLa-pad||s.lat>maxLa+pad||s.lng<minLo-pad||s.lng>maxLo+pad)return;
@@ -1115,9 +1204,9 @@ function analyseRoute(latlngs,sum){
  samples.forEach(function(p){var best=1e9,bcc=null;for(var k=0;k<dIn.length;k++){var st=dIn[k];var d=haversineKm(p[0],p[1],st.lat,st.lng);if(d<best){best=d;bcc=st.cc;}}if(bcc)crossed[bcc]=true;});
  var pricedByCc={};(stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedByCc[s.cc]=1;});
  var flagged=Object.keys(crossed).filter(function(cc){return !pricedByCc[cc];});
- renderRoute(near.slice(0,8),flagged,sum);
+ renderRoute(near.slice(0,8),flagged,sum,R);
 }
-function renderRoute(near,flagged,sum){
+function renderRoute(near,flagged,sum,R){
  var km=Math.round(sum.distance/1000),hrs=(sum.duration/3600);
  var h='<div class="route-summary">'+km+' km \u00b7 ~'+hrs.toFixed(1)+' h (truck)</div>';
  if(flagged.length){
@@ -1130,7 +1219,7 @@ function renderRoute(near,flagged,sum){
    h+='<div class="route-row"><span class="route-rank">'+(i+1)+'</span><span class="route-name">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km off route</small></span><span class="route-price">\u20ac'+fmtP(o.s.p)+'</span><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
   });
  }else{
-  h+='<div class="route-msg">No priced '+currentFuel+' stations found within 8 km of this route.</div>';
+  h+='<div class="route-msg">No priced '+currentFuel+' stations found within '+Math.round(R)+' km of this route.</div>';
  }
  el('routeResult').innerHTML=h;
 }
@@ -1140,6 +1229,7 @@ function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
  var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
  ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
+ var rk=el('routeKm');if(rk)rk.addEventListener('change',function(){if(lastRoute)analyseRoute(lastRoute.latlngs,lastRoute.sum);});
 })();
 function flyToPlace(lat,lng,label){
  if(currentView!=='map'){var mb=document.querySelector('.viewseg button[data-view="map"]');if(mb)mb.click();}
@@ -1151,15 +1241,12 @@ function flyToPlace(lat,lng,label){
 }
 function doSearch(){
  var inp=el('searchInput');if(!inp)return;var q=(inp.value||'').trim();if(!q)return;
- var key=q.toLowerCase().replace(/\s+/g,' ');
  var _c=el('searchClear');if(_c)_c.hidden=false;
- if(CITY[key]){flyToPlace(CITY[key][0],CITY[key][1],q);showCheapestNear(CITY[key][0],CITY[key][1],q,true);return;}
  toast('Searching \u201c'+q+'\u201d\u2026');
- var cc=CC_ORDER.join(',').toLowerCase();
- fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes='+cc+'&q='+encodeURIComponent(q))
-  .then(function(r){return r.ok?r.json():[];})
-  .then(function(a){if(a&&a.length){var la=parseFloat(a[0].lat),lo=parseFloat(a[0].lon),nm=(a[0].display_name||q).split(',')[0];flyToPlace(la,lo,nm);showCheapestNear(la,lo,nm,true);}else{toast('Place not found: '+q);}})
-  .catch(function(){toast('Search unavailable on this network \u2014 try a major city name.');});
+ geocode(q,function(la,lo,nm){
+  if(la==null){toast('Place not found: '+q+' \u2014 try adding the country, e.g. \u201cZaragoza, Spain\u201d');return;}
+  flyToPlace(la,lo,nm||q);showCheapestNear(la,lo,nm||q,true);
+ });
 }
 (function(){var b=el('searchBtn'),i=el('searchInput'),c=el('searchClear');
  if(b)b.addEventListener('click',doSearch);
@@ -1212,7 +1299,9 @@ function closeCheap(){nearMode=false;var b=el('nearBtn'),p=el('cheapPanel'),mp=e
 (function(){
  var b=el('nearBtn'),p=el('cheapPanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();if(p.hidden){p.hidden=false;b.setAttribute('aria-expanded','true');b.classList.add('on');nearMode=true;var mp=el('map');if(mp)mp.style.cursor='crosshair';}else{closeCheap();}});
- var rad=el('cheapRad');if(rad)rad.addEventListener('click',function(e){var t=e.target.closest?e.target.closest('button'):null;if(!t)return;currentRadius=+t.getAttribute('data-r');Array.prototype.forEach.call(rad.children,function(x){x.classList.toggle('on',x===t);});});
+ var rad=el('cheapRad'),km=el('cheapKm');
+ if(rad)rad.addEventListener('click',function(e){var t=e.target.closest?e.target.closest('button'):null;if(!t)return;currentRadius=+t.getAttribute('data-r');if(km)km.value=currentRadius;Array.prototype.forEach.call(rad.children,function(x){x.classList.toggle('on',x===t);});});
+ if(km)km.addEventListener('input',function(){var v=parseFloat(km.value);if(v>0){currentRadius=v;if(rad)Array.prototype.forEach.call(rad.children,function(x){x.classList.toggle('on',+x.getAttribute('data-r')===v);});}});
  var g=el('geoBtn');if(g)g.addEventListener('click',function(){
   if(!navigator.geolocation){toast('Location not available on this device');return;}
   toast('Getting your location\u2026');
