@@ -41,7 +41,7 @@ HIST = os.path.join(HERE, "data", "history.json")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.29"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.30"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -1128,7 +1128,8 @@ def append_history(fuels, manual):
     today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
     row = {"d": today,
            "diesel": country_avgs("diesel"),
-           "hvo": country_avgs("hvo")}
+           "hvo": country_avgs("hvo"),
+           "ev": country_avgs("ev")}
     try:
         with open(HIST, encoding="utf-8") as f:
             hist = json.load(f)
