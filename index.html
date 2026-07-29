@@ -291,6 +291,11 @@
   .cheap-km{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5d6779;margin:0 0 9px}
   .cheap-km input{width:64px;padding:5px 7px;text-align:center;font-size:12px;border:1px solid rgba(16,24,40,.18);border-radius:7px;color:var(--sign-dark)}
 
+  .tools{display:flex;align-items:center;gap:12px}
+  .tools-btn{display:none}
+  .sheet-x{display:none;border:0;background:transparent;color:#8a94a6;font-size:20px;line-height:1;cursor:pointer;padding:0 2px;margin-left:auto}
+  .sheet-x:hover{color:var(--sign-dark)}
+
   /* ---------- phone layout ---------- */
   @media (max-width: 760px){
     header{padding:7px 10px;gap:6px}
@@ -311,6 +316,23 @@
     .hint{display:none}
     .cheap-rad button,.trend-period button{min-height:36px}
     .fm-pop .gpsdir,.fm-pop .gpscopy{padding:6px 11px}
+
+    /* collapse the secondary tools behind one button */
+    .tools-btn{display:inline-flex;font-size:16px;padding:0 12px}
+    .tools{display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:1250;
+      flex-direction:column;align-items:stretch;gap:8px;background:#fff;border-radius:16px;
+      padding:12px;box-shadow:0 -6px 34px rgba(16,24,40,.30);border:1px solid rgba(16,24,40,.08)}
+    .tools.open{display:flex}
+    .tools .btn-ghost{background:#f4f6fb;border-color:rgba(16,24,40,.14);color:var(--sign-dark);
+      justify-content:flex-start;font-size:13.5px;min-height:44px;width:100%}
+    .tools .route-wrap,.tools .cheap-wrap{width:100%}
+    .tools .route-wrap .btn-ghost,.tools .cheap-wrap .btn-ghost{width:100%}
+    /* the sheets sit above the tools menu */
+    .cty-panel,.cheap-panel,.route-panel{z-index:1400}
+    .sheet-x{display:inline-block}
+    /* suggestions inline so they cannot be clipped inside a sheet */
+    .ac-list{position:static;margin-top:6px;box-shadow:none;max-height:34vh}
+    .route-head,.cheap-head,.cty-head{display:flex;align-items:center}
   }
   @media (max-width: 860px){
     header{padding:8px 12px;gap:6px 8px}
@@ -332,7 +354,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.7</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.9</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -350,7 +372,7 @@
       <span aria-hidden="true">🌍</span> Countries <b class="cty-badge" id="ctyCount">21/21</b> <span class="chev" aria-hidden="true">▾</span>
     </button>
     <div class="cty-panel" id="ctyPanel" role="group" aria-label="Filter countries" hidden>
-      <div class="cty-head"><span>Show on map</span>
+      <div class="cty-head"><span>Show on map</span><button class="sheet-x" data-close="ctyPanel" aria-label="Close">×</button>
         <div class="cty-actions"><button id="ctyAll" class="cty-mini">All</button><button id="ctyNone" class="cty-mini">None</button></div>
       </div>
       <div class="cty-grid" id="cseg"></div>
@@ -365,10 +387,12 @@
   </nav>
   <div class="head-right">
     <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
+    <button class="btn-ghost tools-btn" id="toolsBtn" aria-expanded="false" aria-label="More tools">⋯</button>
+    <div class="tools" id="tools">
     <div class="route-wrap">
       <button class="btn-ghost" id="routeBtn" title="Plan a truck route by fuel">🛣 Route</button>
       <div class="route-panel" id="routePanel" hidden>
-        <div class="route-head">Truck route by fuel (&gt;3.5t)</div>
+        <div class="route-head">Truck route by fuel (&gt;3.5t)<button class="sheet-x" data-close="routePanel" aria-label="Close">×</button></div>
         <div class="ac-wrap"><input id="routeFrom" type="text" placeholder="From (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acFrom" hidden></div></div>
         <div class="ac-wrap"><input id="routeTo" type="text" placeholder="To (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acTo" hidden></div></div>
         <div class="route-km"><span>Stations within</span><input id="routeKm" type="number" value="8" min="1" max="200" step="1"><span>km of route</span></div>
@@ -379,7 +403,7 @@
     <div class="cheap-wrap">
       <button class="btn-ghost" id="nearBtn" aria-expanded="false" title="Find the cheapest fuel near a point">◎ Cheapest</button>
       <div class="cheap-panel" id="cheapPanel" hidden>
-        <div class="cheap-head">Cheapest fuel near…</div>
+        <div class="cheap-head">Cheapest fuel near…<button class="sheet-x" data-close="cheapPanel" aria-label="Close">×</button></div>
         <div class="cheap-rad" id="cheapRad"><button data-r="25">25 km</button><button data-r="50">50 km</button><button data-r="80" class="on">80 km</button><button data-r="100">100 km</button></div>
         <div class="cheap-km"><span>or type</span><input id="cheapKm" type="number" min="1" max="500" step="1" value="80"><span>km</span></div>
         <button class="cheap-geo" id="geoBtn">📍 Use my location</button>
@@ -388,6 +412,7 @@
     </div>
     <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ CSV</button>
     <button class="btn-ghost" id="srcBtn">Sources</button>
+    </div>
   </div>
 </header>
 
@@ -478,7 +503,7 @@
       <li>🇬🇧 <b>United Kingdom</b> — <b>Diesel:</b> CMA Fuel Finder retailer feeds — official live per-station, £→€ at the daily ECB rate. <b>HVO100:</b> not published.</li>
     </ul>
     <h4>Methodology &amp; updates</h4>
-    <p>Everything refreshes automatically <b>every day at 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are the official EU weekly bulletin figures (or pinned indicative values for Norway and Switzerland), not station-level prices.</p>
+    <p>Everything refreshes automatically <b>every day at 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are the official EU weekly bulletin figures (or pinned indicative values for Norway and Switzerland), not station-level prices. <b>EU Weekly Oil Bulletin in use: <span id="wobDate">—</span></b> (diesel, prices with taxes).</p>
 
     <h4>Route planning (truck / HGV)</h4>
     <p>🛣 Routes come from <b>OpenRouteService</b> (openrouteservice.org) using its heavy-goods-vehicle profile on <b>OpenStreetMap</b> road data — real routing that avoids general truck-restricted roads (it is not yet tuned to a specific vehicle’s weight/height). Prices shown along a route are the same official station data as the map, and any country the route crosses that does not publish per-station prices is flagged as national-average only. “km off route” is measured to the nearest sampled point on the route line (accurate to within a few km), and the country flag is inferred from the nearest station, so it may be approximate right at a border.</p>
@@ -500,7 +525,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.7';
+var APP_VER='4.9';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -714,6 +739,7 @@ var COLORS={green:'#12a150',amber:'#f5a524',red:'#e5484d',gray:'#9aa3b2'};
 var cheapest=null, colorFor=null;
 var LIVE={diesel:false,hvo:false,ev:false};
 var SNAP='Mon 29 Jun 2026';
+var WOB_DATE=null;
 var COUNTRY_ON={};CC_ORDER.forEach(function(cc){COUNTRY_ON[cc]=true;});
 var MANUAL={};
 
@@ -1170,7 +1196,17 @@ function findRoute(){
    if(tla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(t)+'\u201d.</div>';return;}
    var url='https://api.openrouteservice.org/v2/directions/driving-hgv?api_key='+ORS_KEY+'&start='+flo+','+fla+'&end='+tlo+','+tla;
    fetch(url).then(function(r){return r.json();}).then(function(j){
-    if(!j||!j.features||!j.features.length){el('routeResult').innerHTML='<div class="route-msg">No truck route found (check the key or the city names).</div>';return;}
+    if(!j||!j.features||!j.features.length){
+     var em=(j&&j.error&&(j.error.message||j.error))||'';
+     if(/(api key|apikey|authoriz|403|401|invalid)/i.test(String(em))){
+      try{localStorage.removeItem('fg_ors_key');}catch(e){} ORS_KEY='';
+      el('routeResult').innerHTML='<div class="route-msg">Routing key was rejected. Press <b>Find route</b> again to enter a new key.</div>';
+     }else if(/(quota|rate|limit)/i.test(String(em))){
+      el('routeResult').innerHTML='<div class="route-msg">Routing service daily limit reached. Try again later.</div>';
+     }else{
+      el('routeResult').innerHTML='<div class="route-msg">No truck route found'+(em?': '+esc(String(em)):' (check the city names).')+'</div>';
+     }
+     return;}
     drawRoute(j.features[0].geometry.coordinates,j.features[0].properties.summary);
    }).catch(function(){el('routeResult').innerHTML='<div class="route-msg">Routing failed (network).</div>';});
   });
@@ -1184,6 +1220,7 @@ function drawRoute(coords,sum){
  lastRoute={latlngs:latlngs,sum:sum};
  analyseRoute(latlngs,sum);
 }
+function gridPut(m,la,lo,cell,item){var k=Math.floor(la/cell)+'|'+Math.floor(lo/cell);(m[k]||(m[k]=[])).push(item);}
 function analyseRoute(latlngs,sum){
  var step=Math.max(1,Math.floor(latlngs.length/250));
  var samples=[];for(var i=0;i<latlngs.length;i+=step)samples.push(latlngs[i]);
@@ -1191,22 +1228,48 @@ function analyseRoute(latlngs,sum){
  var minLa=90,maxLa=-90,minLo=180,maxLo=-180;
  samples.forEach(function(p){if(p[0]<minLa)minLa=p[0];if(p[0]>maxLa)maxLa=p[0];if(p[1]<minLo)minLo=p[1];if(p[1]>maxLo)maxLo=p[1];});
  var R=Math.max(1,parseFloat((el('routeKm')||{}).value)||8);
- var pad=R/111+0.15,near=[];
+ var pad=R/111+0.15;
+
+ /* index the route samples so each station only tests nearby ones */
+ var SC=0.25,sIdx={};
+ samples.forEach(function(p){gridPut(sIdx,p[0],p[1],SC,p);});
+ var rings=Math.max(1,Math.ceil((R/111)/SC)+1);
+ var near=[];
  (stations[currentFuel]||[]).forEach(function(s){
   if(s.p==null||!COUNTRY_ON[s.cc])return;
   if(s.lat<minLa-pad||s.lat>maxLa+pad||s.lng<minLo-pad||s.lng>maxLo+pad)return;
-  var best=1e9;for(var k=0;k<samples.length;k++){var d=haversineKm(s.lat,s.lng,samples[k][0],samples[k][1]);if(d<best){best=d;if(best<=R)break;}}
+  var ba=Math.floor(s.lat/SC),bo=Math.floor(s.lng/SC),best=1e9;
+  for(var da=-rings;da<=rings&&best>R;da++)for(var db=-rings;db<=rings&&best>R;db++){
+   var arr=sIdx[(ba+da)+'|'+(bo+db)];if(!arr)continue;
+   for(var k=0;k<arr.length;k++){var d=haversineKm(s.lat,s.lng,arr[k][0],arr[k][1]);if(d<best)best=d;if(best<=R)break;}
+  }
   if(best<=R)near.push({s:s,d:best});
  });
  near.sort(function(a,b){return a.s.p-b.s.p;});
- var dIn=(stations['diesel']||[]).filter(function(s){return !(s.lat<minLa-pad||s.lat>maxLa+pad||s.lng<minLo-pad||s.lng>maxLo+pad);});
+
+ /* which countries the route crosses - nearest station per sample, indexed */
+ var DC=0.5,dIdx={};
+ (stations['diesel']||[]).forEach(function(s){
+  if(s.lat<minLa-pad||s.lat>maxLa+pad||s.lng<minLo-pad||s.lng>maxLo+pad)return;
+  gridPut(dIdx,s.lat,s.lng,DC,s);
+ });
  var crossed={};
- samples.forEach(function(p){var best=1e9,bcc=null;for(var k=0;k<dIn.length;k++){var st=dIn[k];var d=haversineKm(p[0],p[1],st.lat,st.lng);if(d<best){best=d;bcc=st.cc;}}if(bcc)crossed[bcc]=true;});
+ samples.forEach(function(p){
+  var ba=Math.floor(p[0]/DC),bo=Math.floor(p[1]/DC),best=1e9,bcc=null;
+  for(var ring=0;ring<=3&&bcc===null;ring++){
+   for(var da=-ring;da<=ring;da++)for(var db=-ring;db<=ring;db++){
+    if(ring>0&&Math.abs(da)!==ring&&Math.abs(db)!==ring)continue;
+    var arr=dIdx[(ba+da)+'|'+(bo+db)];if(!arr)continue;
+    for(var k=0;k<arr.length;k++){var d=haversineKm(p[0],p[1],arr[k].lat,arr[k].lng);if(d<best){best=d;bcc=arr[k].cc;}}
+   }
+  }
+  if(bcc)crossed[bcc]=true;
+ });
  var pricedByCc={};(stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedByCc[s.cc]=1;});
  var flagged=Object.keys(crossed).filter(function(cc){return !pricedByCc[cc];});
- renderRoute(near.slice(0,8),flagged,sum,R);
+ renderRoute(near.slice(0,8),flagged,sum,R,near.length);
 }
-function renderRoute(near,flagged,sum,R){
+function renderRoute(near,flagged,sum,R,total){
  var km=Math.round(sum.distance/1000),hrs=(sum.duration/3600);
  var h='<div class="route-summary">'+km+' km \u00b7 ~'+hrs.toFixed(1)+' h (truck)</div>';
  if(flagged.length){
@@ -1214,9 +1277,9 @@ function renderRoute(near,flagged,sum,R){
   h+='<div class="route-flag">\u26A0 Per-station prices are not published in: <b>'+esc(names)+'</b>. Those sections show the national average only \u2014 not exact station prices.</div>';
  }
  if(near.length){
-  h+='<div class="route-listhead">Cheapest '+currentFuel.toUpperCase()+' along the route</div>';
+  h+='<div class="route-listhead">Cheapest '+currentFuel.toUpperCase()+' along the route <span style="font-weight:600;color:#8a94a6">('+fmtInt(total||near.length)+' within '+Math.round(R)+' km)</span></div>';
   near.forEach(function(o,i){
-   h+='<div class="route-row"><span class="route-rank">'+(i+1)+'</span><span class="route-name">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km off route</small></span><span class="route-price">\u20ac'+fmtP(o.s.p)+'</span><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
+   h+='<div class="route-row" data-la="'+o.s.lat+'" data-lo="'+o.s.lng+'"><span class="route-rank">'+(i+1)+'</span><span class="route-name">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km off route</small></span><span class="route-price">\u20ac'+fmtP(o.s.p)+'</span><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
   });
  }else{
   h+='<div class="route-msg">No priced '+currentFuel+' stations found within '+Math.round(R)+' km of this route.</div>';
@@ -1287,7 +1350,7 @@ function showCheapestNear(lat,lng,label,silentIfEmpty){
  var top=cand.slice(0,6);
  var html='<div class="fm-pop"><div class="nm">Cheapest '+currentFuel.toUpperCase()+' within '+R+' km'+(label?' \u00b7 '+esc(label):'')+'</div>';
  top.forEach(function(o,i){
-  html+='<div class="nearrow"><span class="nearrank">'+(i+1)+'</span>'+
+  html+='<div class="nearrow" data-la="'+o.s.lat+'" data-lo="'+o.s.lng+'"><span class="nearrank">'+(i+1)+'</span>'+
    '<span class="nearname">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km</small></span>'+
    '<span class="nearprice">\u20ac'+fmtP(o.s.p)+'</span>'+
    '<a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
@@ -1310,6 +1373,41 @@ function closeCheap(){nearMode=false;var b=el('nearBtn'),p=el('cheapPanel'),mp=e
  document.addEventListener('click',function(e){if(!p.hidden&&!p.contains(e.target)&&!b.contains(e.target)){if(e.target.closest&&e.target.closest('#map'))return;p.hidden=true;b.setAttribute('aria-expanded','false');}});
 })();
 map.on('click',function(e){ if(!nearMode)return; closeCheap(); showCheapestNear(e.latlng.lat,e.latlng.lng,null,false); });
+
+/* click a route / cheapest result row -> fly to that station */
+document.addEventListener('click',function(e){
+ var row=e.target&&e.target.closest?e.target.closest('.route-row,.nearrow'):null;
+ if(!row||(e.target.closest&&e.target.closest('a')))return;
+ var la=parseFloat(row.getAttribute('data-la')),lo=parseFloat(row.getAttribute('data-lo'));
+ if(isNaN(la)||isNaN(lo))return;
+ var z=Math.max(map.getZoom(),STATION_ZOOM);
+ if(reduceMotion)map.setView([la,lo],z);else map.flyTo([la,lo],z,{duration:0.7});
+});
+/* small x on the panels (essential on phones) */
+document.addEventListener('click',function(e){
+ var b=e.target&&e.target.closest?e.target.closest('.sheet-x'):null;if(!b)return;
+ e.stopPropagation();
+ var p=el(b.getAttribute('data-close'));if(p)p.hidden=true;
+ if(b.getAttribute('data-close')==='cheapPanel'){nearMode=false;var nb=el('nearBtn');if(nb){nb.classList.remove('on');nb.setAttribute('aria-expanded','false');}var mp=el('map');if(mp)mp.style.cursor='';}
+ if(b.getAttribute('data-close')==='routePanel'){var rb=el('routeBtn');if(rb)rb.classList.remove('on');}
+ if(b.getAttribute('data-close')==='ctyPanel'){var cb=el('ctyBtn');if(cb)cb.setAttribute('aria-expanded','false');}
+});
+/* Esc closes whatever is open */
+document.addEventListener('keydown',function(e){
+ if(e.key!=='Escape')return;
+ ['ctyPanel','cheapPanel','routePanel','tools'].forEach(function(id){var p=el(id);if(p&&!p.hidden)p.hidden=true;});
+ var tb=el('toolsBtn');if(tb)tb.setAttribute('aria-expanded','false');
+ map.closePopup();
+});
+/* phone: the "more tools" menu */
+(function(){var b=el('toolsBtn'),t=el('tools');if(!b||!t)return;
+ b.addEventListener('click',function(e){e.stopPropagation();var open=t.classList.toggle('open');b.setAttribute('aria-expanded',open?'true':'false');});
+ document.addEventListener('click',function(e){
+  if(!t.classList.contains('open'))return;
+  if(t.contains(e.target)||b.contains(e.target))return;
+  t.classList.remove('open');b.setAttribute('aria-expanded','false');
+ });
+})();
 
 /* ---------------- live data loader ---------------- */
 function refreshBadges(){
@@ -1340,6 +1438,7 @@ function applyPayload(pl){
   });
   if(pl.snapshot_label)SNAP=pl.snapshot_label;
   if(pl.manual_avg)MANUAL=pl.manual_avg;
+  if(pl.wob_date){WOB_DATE=pl.wob_date;var wd=el('wobDate');if(wd)wd.textContent=WOB_DATE;}
   refreshBadges();
   refresh();
   updateChipCounts();
