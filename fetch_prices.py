@@ -38,10 +38,11 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data", "prices-latest.json")
 HIST = os.path.join(HERE, "data", "history.json")
+WOB  = os.path.join(HERE, "data", "manual", "eu_wob_prices.xlsx")
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.30"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.31"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -1095,13 +1096,89 @@ DEFAULT_DIESEL_AVG = {
 }
 
 
+def read_eu_bulletin():
+    """Parse the EU Weekly Oil Bulletin 'Prices with taxes' .xlsx that lives
+    at data/manual/eu_wob_prices.xlsx. Column C ('Gas oil automobile') is
+    road diesel per 1000 L. Returns {cc: eur_per_litre} for the countries we
+    show as national averages. Pure stdlib (zip + minimal xlsx parse).
+    Returns {} if the file is missing or unreadable (caller keeps pinned)."""
+    if not os.path.exists(WOB):
+        return {}
+    NAME2CC = {"austria": "AT", "belgium": "BE", "bulgaria": "BG", "croatia": "HR",
+               "cyprus": "CY", "czechia": "CZ", "czech republic": "CZ", "denmark": "DK",
+               "estonia": "EE", "finland": "FI", "france": "FR", "germany": "DE",
+               "greece": "GR", "hungary": "HU", "ireland": "IE", "italy": "IT",
+               "latvia": "LV", "lithuania": "LT", "luxembourg": "LU", "malta": "MT",
+               "netherlands": "NL", "poland": "PL", "portugal": "PT", "romania": "RO",
+               "slovakia": "SK", "slovenia": "SI", "spain": "ES", "sweden": "SE"}
+    try:
+        with zipfile.ZipFile(WOB) as z:
+            shared = []
+            if "xl/sharedStrings.xml" in z.namelist():
+                sx = z.read("xl/sharedStrings.xml").decode("utf-8", "ignore")
+                for si in re.findall(r"<si>(.*?)</si>", sx, re.S):
+                    shared.append("".join(re.findall(r"<t[^>]*>(.*?)</t>", si, re.S)))
+            sheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8", "ignore")
+    except Exception as exc:
+        print(f"WOB: could not open bulletin - {exc}")
+        return {}
+
+    def cell_val(c):
+        m = re.search(r"<v>(.*?)</v>", c)
+        if not m:
+            return None
+        raw = m.group(1)
+        if 't="s"' in c:                       # shared-string index
+            try:
+                return shared[int(raw)]
+            except Exception:
+                return None
+        return raw
+
+    rows = {}
+    for rm in re.finditer(r'<row r="(\d+)"[^>]*>(.*?)</row>', sheet, re.S):
+        rnum = int(rm.group(1))
+        cells = {}
+        for cm in re.finditer(r'<c r="([A-Z]+)\d+"[^>]*?(?:/>|>(.*?)</c>)', rm.group(2), re.S):
+            col = cm.group(1)
+            cells[col] = cell_val(cm.group(0))
+        rows[rnum] = cells
+
+    out = {}
+    for rnum, cells in rows.items():
+        a = (cells.get("A") or "").strip().lower()
+        cc = NAME2CC.get(a)
+        if not cc:
+            continue
+        raw = cells.get("C")
+        if raw in (None, ""):
+            continue
+        try:
+            out[cc] = round(float(raw) / 1000.0, 3)   # per 1000 L -> per L
+        except Exception:
+            continue
+    if out:
+        draw = rows.get(2, {}).get("A") or "?"
+        try:                                   # A2 is an Excel serial date
+            date = (dt.date(1899, 12, 30) + dt.timedelta(days=int(float(draw)))).isoformat()
+        except Exception:
+            date = str(draw)
+        print(f"WOB: parsed {len(out)} country diesel averages (bulletin {date})")
+    return out
+
+
 def merged_averages():
-    """No-feed national diesel averages: a pinned official baseline,
-    overridden by data/manual/national_averages.csv. The Commission's
-    spreadsheet changes format/URL too often to parse reliably from an
-    automated run, so the figures are pinned rather than scraped."""
-    out = {"diesel": dict(DEFAULT_DIESEL_AVG)}
-    for fuel, m in load_manual_averages().items():
+    """No-feed national diesel averages. Uses the real EU Weekly Oil
+    Bulletin ('Prices with taxes', column C road diesel) from
+    data/manual/eu_wob_prices.xlsx when present; falls back to a pinned
+    baseline if it is missing; a manual CSV overrides everything."""
+    diesel = dict(DEFAULT_DIESEL_AVG)          # pinned fallback (used if bulletin missing)
+    bulletin = read_eu_bulletin()               # real EU Weekly Oil Bulletin figures
+    for cc, v in bulletin.items():
+        if cc in diesel:                        # only the countries we display
+            diesel[cc] = v
+    out = {"diesel": diesel}
+    for fuel, m in load_manual_averages().items():   # manual CSV still wins if present
         out.setdefault(fuel, {}).update(m)
     return out
 
