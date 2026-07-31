@@ -37,12 +37,14 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data", "prices-latest.json")
+EV_OUT = os.path.join(HERE, "data", "ev-latest.json")
 HIST = os.path.join(HERE, "data", "history.json")
 WOB  = os.path.join(HERE, "data", "manual", "eu_wob_prices.xlsx")
+WOB_DATE = [None]   # filled by read_eu_bulletin()
 UA = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.31"),
+                   "Chrome/126.0 Safari/537.36 FuelGridEurope/0.33"),
     "Accept": "text/csv,application/json,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,es;q=0.8,en;q=0.6",
     "Accept-Encoding": "identity",
@@ -1163,6 +1165,7 @@ def read_eu_bulletin():
             date = (dt.date(1899, 12, 30) + dt.timedelta(days=int(float(draw)))).isoformat()
         except Exception:
             date = str(draw)
+        WOB_DATE[0] = date
         print(f"WOB: parsed {len(out)} country diesel averages (bulletin {date})")
     return out
 
@@ -1289,20 +1292,34 @@ def main():
         "ev": {"live": len(ev) >= 50, "stations": ev},
     }
     now = dt.datetime.now(dt.timezone.utc)
-    payload = {
+    avg = merged_averages()
+
+    # EV is by far the biggest slice (~10 MB). Write it to its own file so the
+    # map can show diesel instantly and load EV only when the user opens it.
+    ev_fuels = {"ev": fuels.pop("ev")}
+    main_payload = {
         "generated": now.isoformat(timespec="seconds"),
         "snapshot_label": now.strftime("%a %-d %b %Y"),
-        "fuels": fuels,
-        "manual_avg": merged_averages(),
+        "fuels": fuels,                    # diesel + hvo only
+        "manual_avg": avg,
+        "wob_date": WOB_DATE[0],
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
-    size_mb = os.path.getsize(OUT) / 1e6
-    print(f"Wrote {OUT}  ({size_mb:.1f} MB) - "
-          f"{len(diesel)} diesel / {len(hvo)} HVO / {len(ev)} EV stations")
+        json.dump(main_payload, f, separators=(",", ":"), ensure_ascii=False)
 
-    append_history(fuels, payload["manual_avg"])
+    ev_payload = {"generated": now.isoformat(timespec="seconds"), "fuels": ev_fuels}
+    with open(EV_OUT, "w", encoding="utf-8") as f:
+        json.dump(ev_payload, f, separators=(",", ":"), ensure_ascii=False)
+
+    main_mb = os.path.getsize(OUT) / 1e6
+    ev_mb = os.path.getsize(EV_OUT) / 1e6
+    print(f"Wrote {OUT} ({main_mb:.1f} MB) - {len(diesel)} diesel / {len(hvo)} HVO")
+    print(f"Wrote {EV_OUT} ({ev_mb:.1f} MB) - {len(ev)} EV stations (loaded on demand)")
+
+    # history needs EV too - rebuild the full dict for the log
+    fuels["ev"] = ev_fuels["ev"]
+    append_history(fuels, avg)
 
 
 if __name__ == "__main__":

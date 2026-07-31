@@ -293,46 +293,69 @@
 
   .tools{display:flex;align-items:center;gap:12px}
   .tools-btn{display:none}
+  .menu-only{display:none}
+  .coords{font-size:11px;color:#5d6779;cursor:pointer;font-variant-numeric:tabular-nums}
+  .coords:hover{color:var(--sign-dark)}
+  .go-menu{position:absolute;z-index:3000;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:10px;box-shadow:0 12px 30px rgba(16,24,40,.26);padding:5px;display:flex;flex-direction:column;min-width:150px}
+  .go-menu button,.go-menu a{border:0;background:transparent;text-align:left;padding:9px 11px;font-size:13px;color:var(--sign-dark);cursor:pointer;border-radius:7px;text-decoration:none;display:block}
+  .go-menu button:hover,.go-menu a:hover{background:#f2f6fd}
+  .routego{cursor:pointer}
   .sheet-x{display:none;border:0;background:transparent;color:#8a94a6;font-size:20px;line-height:1;cursor:pointer;padding:0 2px;margin-left:auto}
   .sheet-x:hover{color:var(--sign-dark)}
 
   /* ---------- phone layout ---------- */
   @media (max-width: 760px){
-    header{padding:7px 10px;gap:6px}
-    .brand h1{font-size:14px}
+    header{position:relative;padding:6px 8px;gap:5px}
+    .brand{padding-right:40px}
+    .brand h1{font-size:13px}
     .ver{display:none}
-    .brand-txt .snapshot{display:inline-flex !important;font-size:9.5px}
-    .btn-ghost,.seg button{min-height:40px}
-    .searchbox{flex:1 1 140px}
-    .searchbox input{width:100%;font-size:16px}
-    .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;bottom:8px;top:auto;width:auto;max-width:none;max-height:74vh;overflow:auto;border-radius:16px;padding:14px}
-    .cty-grid{grid-template-columns:repeat(2,1fr);max-height:44vh}
-    .cty-grid .cbtn{padding:9px 8px;font-size:12px}
-    .route-panel input,.cheap-km input,.route-km input{font-size:16px}
-    .route-result{max-height:36vh}
-    .panel{left:8px !important;right:8px !important;width:auto !important;top:auto !important;bottom:8px !important;max-height:50vh}
-    .trend-grid{grid-template-columns:1fr}
-    .trends-inner{padding:16px 12px 32px}
-    .hint{display:none}
-    .cheap-rad button,.trend-period button{min-height:36px}
-    .fm-pop .gpsdir,.fm-pop .gpscopy{padding:6px 11px}
+    .brand .lights{display:none}
+    .brand-txt .snapshot{display:inline-flex !important;font-size:9px;opacity:.85}
 
-    /* collapse the secondary tools behind one button */
-    .tools-btn{display:inline-flex;font-size:16px;padding:0 12px}
+    /* driver essentials only, compact */
+    .fseg{order:2;flex-basis:100%;margin-left:0}
+    .fseg::before{display:none}
+    .fseg button{flex:1;font-size:11px;padding:7px 3px;min-height:36px}
+    .head-right{order:3;flex-basis:100%;margin-left:0;gap:6px}
+    .searchbox{flex:1 1 auto}
+    .searchbox input{width:100%;font-size:16px;padding:7px 9px}
+    .route-wrap .btn-ghost,.cheap-wrap .btn-ghost{min-height:38px;padding:0 10px;font-size:12.5px}
+    #viewToggle{display:none}          /* Trends lives in the ⋯ menu on phone */
+
+    /* office features hidden from the header (they live in the ⋯ menu) */
+    .viewseg,#resetBtn{display:none}
+    .cty-wrap .cty-btn{display:none}
+
+    /* the ⋯ button, pinned top-right */
+    .tools-btn{display:inline-flex;position:absolute;top:9px;right:10px;z-index:6;font-size:18px;padding:0 12px;min-height:36px}
+
+    /* ⋯ opens a bottom sheet menu */
     .tools{display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:1250;
       flex-direction:column;align-items:stretch;gap:8px;background:#fff;border-radius:16px;
       padding:12px;box-shadow:0 -6px 34px rgba(16,24,40,.30);border:1px solid rgba(16,24,40,.08)}
     .tools.open{display:flex}
     .tools .btn-ghost{background:#f4f6fb;border-color:rgba(16,24,40,.14);color:var(--sign-dark);
-      justify-content:flex-start;font-size:13.5px;min-height:44px;width:100%}
-    .tools .route-wrap,.tools .cheap-wrap{width:100%}
-    .tools .route-wrap .btn-ghost,.tools .cheap-wrap .btn-ghost{width:100%}
-    /* the sheets sit above the tools menu */
-    .cty-panel,.cheap-panel,.route-panel{z-index:1400}
-    .sheet-x{display:inline-block}
-    /* suggestions inline so they cannot be clipped inside a sheet */
+      justify-content:flex-start;font-size:14px;min-height:46px;width:100%}
+    .menu-only{display:block}
+
+    /* panels become bottom sheets, above the menu */
+    .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;bottom:8px;top:auto;
+      width:auto;max-width:none;max-height:76vh;overflow:auto;border-radius:16px;padding:14px;z-index:1400}
+    .cty-grid{grid-template-columns:repeat(2,1fr);max-height:46vh}
+    .cty-grid .cbtn{padding:10px 8px;font-size:12.5px}
+    .route-panel input,.cheap-km input,.route-km input,.cheap-panel input{font-size:16px}
+    .route-result{max-height:38vh}
     .ac-list{position:static;margin-top:6px;box-shadow:none;max-height:34vh}
+    .sheet-x{display:inline-block}
     .route-head,.cheap-head,.cty-head{display:flex;align-items:center}
+
+    /* stats panel + trends + popups */
+    .panel{left:8px !important;right:8px !important;width:auto !important;top:auto !important;bottom:8px !important;max-height:50vh}
+    .trend-grid{grid-template-columns:1fr}
+    .trends-inner{padding:16px 12px 32px}
+    .hint{display:none}
+    .cheap-rad button,.trend-period button{min-height:38px}
+    .fm-pop .gpsdir,.fm-pop .gpscopy{padding:7px 12px}
   }
   @media (max-width: 860px){
     header{padding:8px 12px;gap:6px 8px}
@@ -354,14 +377,11 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v4.9</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.1</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
-  <nav class="seg viewseg" id="viewseg" role="group" aria-label="View">
-    <button data-view="map" aria-pressed="true">Map</button>
-    <button data-view="trends" aria-pressed="false">Trends</button>
-  </nav>
+
   <nav class="seg fseg" role="group" aria-label="Energy type">
     <button data-fuel="diesel" aria-pressed="true">Diesel B7</button>
     <button data-fuel="hvo" aria-pressed="false">HVO100</button>
@@ -385,10 +405,9 @@
     <button data-kw="150">Truck ≥150 kW</button>
     <button data-kw="350">HPC ≥350 kW</button>
   </nav>
+  <div class="viewseg" id="viewseg" style="display:none"><button data-view="map" aria-pressed="true"></button><button data-view="trends" aria-pressed="false"></button></div>
   <div class="head-right">
     <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
-    <button class="btn-ghost tools-btn" id="toolsBtn" aria-expanded="false" aria-label="More tools">⋯</button>
-    <div class="tools" id="tools">
     <div class="route-wrap">
       <button class="btn-ghost" id="routeBtn" title="Plan a truck route by fuel">🛣 Route</button>
       <div class="route-panel" id="routePanel" hidden>
@@ -410,8 +429,14 @@
         <p class="cheap-hint">…or click any point on the map.</p>
       </div>
     </div>
-    <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ CSV</button>
-    <button class="btn-ghost" id="srcBtn">Sources</button>
+    <button class="btn-ghost tools-btn" id="toolsBtn" aria-expanded="false" aria-label="More tools">⋯</button>
+    <div class="tools" id="tools">
+    <button class="btn-ghost" id="viewToggle" title="Switch between map and price trends">📈 Trends</button>
+    <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ Export CSV</button>
+    <button class="btn-ghost" id="srcBtn">ℹ Sources</button>
+      <button class="btn-ghost menu-only" id="mTrends">📈 Trends</button>
+      <button class="btn-ghost menu-only" id="mCountries">🌍 Countries</button>
+      <button class="btn-ghost menu-only" id="mReset">↺ Reset</button>
     </div>
   </div>
 </header>
@@ -440,6 +465,7 @@
     <span style="font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--green)">Cheapest in view</span>
     <b id="cheapName">–</b>
     <span id="cheapPrice" style="font-variant-numeric:tabular-nums"></span>
+    <span id="cheapCoords" class="coords" style="display:none"></span>
     <button class="go" id="cheapGo">Go to station</button>
   </div>
   <div class="divider"></div>
@@ -525,7 +551,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='4.9';
+var APP_VER='5.1';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -896,6 +922,7 @@ function refreshCore(){
   cheapest=s0;
   el('cheapName').textContent=s0.name;
   el('cheapPrice').textContent='\u20ac'+fmtP(s0.p)+' '+m.unit.slice(1)+' \u00b7 '+((COUNTRY[s0.cc]||{name:s0.cc}).name);
+  var cco=el('cheapCoords');if(cco){cco.textContent='\u25CE '+s0.lat.toFixed(5)+', '+s0.lng.toFixed(5)+'  (tap to copy)';cco.style.display='block';}
   cb.style.display='block';
  }else{cheapest=null;cb.style.display='none';}
 
@@ -961,7 +988,7 @@ buildChips();
 function updateCtyCount(){var on=0;CC_ORDER.forEach(function(cc){if(COUNTRY_ON[cc])on++;});var e=el('ctyCount');if(e)e.textContent=on+'/'+CC_ORDER.length;}
 updateCtyCount();
 (function(){var b=el('ctyBtn'),p=el('ctyPanel');if(!b||!p)return;
- b.addEventListener('click',function(e){e.stopPropagation();var hid=p.hasAttribute('hidden');if(hid){p.removeAttribute('hidden');b.setAttribute('aria-expanded','true');}else{p.setAttribute('hidden','');b.setAttribute('aria-expanded','false');}});
+ b.addEventListener('click',function(e){e.stopPropagation();var hid=p.hasAttribute('hidden');if(hid){closeAllPanels('ctyPanel');p.removeAttribute('hidden');b.setAttribute('aria-expanded','true');}else{p.setAttribute('hidden','');b.setAttribute('aria-expanded','false');}});
  document.addEventListener('click',function(e){if(!p.hasAttribute('hidden')&&!p.contains(e.target)&&!b.contains(e.target)){p.setAttribute('hidden','');b.setAttribute('aria-expanded','false');}});
  var a=el('ctyAll'),n=el('ctyNone');
  if(a)a.addEventListener('click',function(){CC_ORDER.forEach(function(cc){COUNTRY_ON[cc]=true;});document.querySelectorAll('.cbtn').forEach(function(x){x.setAttribute('aria-pressed','true');});updateCtyCount();map.closePopup();refresh();});
@@ -1001,6 +1028,7 @@ document.querySelectorAll('.fseg button').forEach(function(btn){
   currentFuel=btn.getAttribute('data-fuel');
   el('powseg').classList.toggle('show',currentFuel==='ev');
   map.closePopup();
+  if(currentFuel==='ev'&&!EV_LOADED){loadEV();}
   refresh();
   updateChipCounts();
   if(currentView==='trends')buildTrends();
@@ -1040,6 +1068,10 @@ el('resetBtn').addEventListener('click',function(){
  refresh();
  updateChipCounts();
 });
+(function(){var cc=el('cheapCoords');if(cc)cc.addEventListener('click',function(){
+ if(!cheapest)return;var t=cheapest.lat.toFixed(5)+', '+cheapest.lng.toFixed(5);
+ try{navigator.clipboard.writeText(t);toast('Copied '+t);}catch(e){toast(t);}
+});})();
 el('cheapGo').addEventListener('click',function(){
  if(!cheapest)return;
  var ll=[cheapest.lat,cheapest.lng];
@@ -1112,12 +1144,17 @@ function buildTrends(){
  var g=el('trendGrid');if(g)g.innerHTML=out||'<p style="color:#5d6779">No history for this fuel in this window yet \u2014 it builds daily. (Or no countries selected.)</p>';
 }
 (function(){var tp=el('trendPeriod');if(!tp)return;tp.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button'):null;if(!b)return;trendDays=+b.getAttribute('data-days');Array.prototype.forEach.call(tp.children,function(x){x.classList.toggle('on',x===b);});buildTrends();});})();
+(function(){var vt=el('viewToggle');if(vt)vt.addEventListener('click',function(){
+  var goT=currentView!=='trends';
+  var b=document.querySelector('.viewseg [data-view="'+(goT?'trends':'map')+'"]');if(b)b.click();
+ });})();
 (function(){var vb=document.querySelectorAll('.viewseg button');if(!vb.length)return;
  vb.forEach(function(b){b.addEventListener('click',function(){
   var v=b.getAttribute('data-view');if(v===currentView)return;currentView=v;
   vb.forEach(function(x){x.setAttribute('aria-pressed',x.getAttribute('data-view')===v?'true':'false');});
   var isT=(v==='trends');var t=el('trends');if(t)t.hidden=!isT;
   document.body.classList.toggle('trends-mode',isT);
+  var vt=el('viewToggle');if(vt){vt.innerHTML=isT?'\uD83D\uDDFA Map':'\uD83D\uDCC8 Trends';vt.classList.toggle('on',isT);}
   if(isT)buildTrends();else{map.invalidateSize();}
  });});})();
 var searchMarker=null;
@@ -1181,7 +1218,16 @@ function attachAC(inputId,listId){
 attachAC('routeFrom','acFrom');attachAC('routeTo','acTo');
 function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
  if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
-var routeLayer=null,lastRoute=null;
+var routeLayer=null,lastRoute=null,routeStops=[],lastFrom=null,lastTo=null;
+function closeAllPanels(except){
+ [['ctyPanel','ctyBtn'],['cheapPanel','nearBtn'],['routePanel','routeBtn']].forEach(function(pr){
+  if(pr[0]===except)return;
+  var p=el(pr[0]);if(p)p.hidden=true;
+  var b=el(pr[1]);if(b){b.classList.remove('on');b.setAttribute('aria-expanded','false');}
+ });
+ if(except!=='cheapPanel'){nearMode=false;var mp=el('map');if(mp)mp.style.cursor='';}
+ if(except!=='tools'){var t=el('tools');if(t)t.classList.remove('open');var tb=el('toolsBtn');if(tb)tb.setAttribute('aria-expanded','false');}
+}
 function findRoute(){
  if(!ORS_KEY||ORS_KEY.indexOf('PASTE')>=0){
   var k=prompt('Paste your OpenRouteService API key (free from openrouteservice.org). It is stored only on this device.');
@@ -1194,8 +1240,23 @@ function findRoute(){
   if(fla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(f)+'\u201d.</div>';return;}
   coordsOf('routeTo',t,function(tla,tlo){
    if(tla==null){el('routeResult').innerHTML='<div class="route-msg">Could not find \u201c'+esc(t)+'\u201d.</div>';return;}
-   var url='https://api.openrouteservice.org/v2/directions/driving-hgv?api_key='+ORS_KEY+'&start='+flo+','+fla+'&end='+tlo+','+tla;
-   fetch(url).then(function(r){return r.json();}).then(function(j){
+   runRouting(fla,flo,tla,tlo);
+  });
+ });
+}
+function runRouting(fla,flo,tla,tlo){
+   var coords=[[flo,fla]];
+   routeStops.forEach(function(w){coords.push([w[1],w[0]]);});
+   coords.push([tlo,tla]);
+   var fetchP;
+   if(coords.length>2){
+    fetchP=fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson',{
+      method:'POST',headers:{'Authorization':ORS_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({coordinates:coords})});
+   }else{
+    fetchP=fetch('https://api.openrouteservice.org/v2/directions/driving-hgv?api_key='+ORS_KEY+'&start='+flo+','+fla+'&end='+tlo+','+tla);
+   }
+   fetchP.then(function(r){return r.json();}).then(function(j){
     if(!j||!j.features||!j.features.length){
      var em=(j&&j.error&&(j.error.message||j.error))||'';
      if(/(api key|apikey|authoriz|403|401|invalid)/i.test(String(em))){
@@ -1209,8 +1270,6 @@ function findRoute(){
      return;}
     drawRoute(j.features[0].geometry.coordinates,j.features[0].properties.summary);
    }).catch(function(){el('routeResult').innerHTML='<div class="route-msg">Routing failed (network).</div>';});
-  });
- });
 }
 function drawRoute(coords,sum){
  if(routeLayer)map.removeLayer(routeLayer);
@@ -1286,9 +1345,9 @@ function renderRoute(near,flagged,sum,R,total){
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
- b.addEventListener('click',function(e){e.stopPropagation();p.hidden=!p.hidden;b.classList.toggle('on',!p.hidden);});
+ b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
  var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
  ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
@@ -1361,7 +1420,7 @@ function showCheapestNear(lat,lng,label,silentIfEmpty){
 function closeCheap(){nearMode=false;var b=el('nearBtn'),p=el('cheapPanel'),mp=el('map');if(b){b.classList.remove('on');b.setAttribute('aria-expanded','false');}if(p)p.hidden=true;if(mp)mp.style.cursor='';}
 (function(){
  var b=el('nearBtn'),p=el('cheapPanel');if(!b||!p)return;
- b.addEventListener('click',function(e){e.stopPropagation();if(p.hidden){p.hidden=false;b.setAttribute('aria-expanded','true');b.classList.add('on');nearMode=true;var mp=el('map');if(mp)mp.style.cursor='crosshair';}else{closeCheap();}});
+ b.addEventListener('click',function(e){e.stopPropagation();if(p.hidden){closeAllPanels('cheapPanel');p.hidden=false;b.setAttribute('aria-expanded','true');b.classList.add('on');nearMode=true;var mp=el('map');if(mp)mp.style.cursor='crosshair';}else{closeCheap();}});
  var rad=el('cheapRad'),km=el('cheapKm');
  if(rad)rad.addEventListener('click',function(e){var t=e.target.closest?e.target.closest('button'):null;if(!t)return;currentRadius=+t.getAttribute('data-r');if(km)km.value=currentRadius;Array.prototype.forEach.call(rad.children,function(x){x.classList.toggle('on',x===t);});});
  if(km)km.addEventListener('input',function(){var v=parseFloat(km.value);if(v>0){currentRadius=v;if(rad)Array.prototype.forEach.call(rad.children,function(x){x.classList.toggle('on',+x.getAttribute('data-r')===v);});}});
@@ -1374,6 +1433,27 @@ function closeCheap(){nearMode=false;var b=el('nearBtn'),p=el('cheapPanel'),mp=e
 })();
 map.on('click',function(e){ if(!nearMode)return; closeCheap(); showCheapestNear(e.latlng.lat,e.latlng.lng,null,false); });
 
+/* route Go button -> tiny menu: add stop or google maps */
+document.addEventListener('click',function(e){
+ var g=e.target&&e.target.closest?e.target.closest('.routego'):null;
+ var existing=document.getElementById('goMenu');
+ if(existing&&(!g||true))existing.remove();
+ if(!g)return;
+ e.stopPropagation();
+ var la=parseFloat(g.getAttribute('data-la')),lo=parseFloat(g.getAttribute('data-lo')),nm=g.getAttribute('data-nm')||'stop';
+ var m=document.createElement('div');m.id='goMenu';m.className='go-menu';
+ m.innerHTML='<button data-act="stop">\u2795 Add stop</button><a href="https://www.google.com/maps/dir/?api=1&destination='+la+','+lo+'" target="_blank" rel="noopener" data-act="maps">\uD83D\uDDFA Google Maps</a>';
+ document.body.appendChild(m);
+ var r=g.getBoundingClientRect();
+ m.style.top=(r.bottom+window.scrollY+4)+'px';
+ m.style.left=Math.max(8,Math.min(r.left+window.scrollX-60,window.innerWidth-160))+'px';
+ m.querySelector('[data-act=stop]').addEventListener('click',function(){
+  m.remove();
+  if(routeStops.length>=5){toast('Up to 5 stops.');return;}
+  routeStops.push([la,lo]);
+  if(lastFrom&&lastTo){el('routeResult').innerHTML='<div class="route-msg">Re-routing via '+esc(nm)+'\u2026</div>';runRouting(lastFrom[0],lastFrom[1],lastTo[0],lastTo[1]);}
+ });
+});
 /* click a route / cheapest result row -> fly to that station */
 document.addEventListener('click',function(e){
  var row=e.target&&e.target.closest?e.target.closest('.route-row,.nearrow'):null;
@@ -1401,7 +1481,12 @@ document.addEventListener('keydown',function(e){
 });
 /* phone: the "more tools" menu */
 (function(){var b=el('toolsBtn'),t=el('tools');if(!b||!t)return;
- b.addEventListener('click',function(e){e.stopPropagation();var open=t.classList.toggle('open');b.setAttribute('aria-expanded',open?'true':'false');});
+  b.addEventListener('click',function(e){e.stopPropagation();var opening=!t.classList.contains('open');if(opening)closeAllPanels('tools');t.classList.toggle('open',opening);b.setAttribute('aria-expanded',opening?'true':'false');});
+ function closeTools(){t.classList.remove('open');b.setAttribute('aria-expanded','false');}
+ function proxy(id,fn){var x=el(id);if(x)x.addEventListener('click',function(){closeTools();fn();});}
+ proxy('mTrends',function(){var v=document.querySelector('.viewseg [data-view="trends"]');if(v)v.click();});
+ proxy('mCountries',function(){closeAllPanels('ctyPanel');var p2=el('ctyPanel');if(p2)p2.removeAttribute('hidden');var cb=el('ctyBtn');if(cb)cb.setAttribute('aria-expanded','true');});
+ proxy('mReset',function(){var r=el('resetBtn');if(r)r.click();});
  document.addEventListener('click',function(e){
   if(!t.classList.contains('open'))return;
   if(t.contains(e.target)||b.contains(e.target))return;
@@ -1419,10 +1504,34 @@ function refreshBadges(){
  var liveTxt=live.map(function(k){return names[k];}).join(' + ');
  el('snapshot').innerHTML='<span class="dot"></span>Updated '+SNAP+' \u00b7 auto-refresh daily';
 }
+var EV_LOADED=false,EV_LOADING=false;
+function loadEV(){
+ if(EV_LOADED||EV_LOADING)return; EV_LOADING=true;
+ var s=el('snapshot'); var prev=s?s.innerHTML:'';
+ if(s)s.innerHTML='<span class="dot"></span>Loading EV chargers\u2026';
+ fetch('data/ev-latest.json?v='+Date.now(),{cache:'no-store'})
+  .then(function(r){if(!r.ok)throw 0;return r.json();})
+  .then(function(j){
+   var rows=((j.fuels&&j.fuels.ev&&j.fuels.ev.stations)||[]).map(function(a){
+     return{lat:a[0],lng:a[1],cc:a[2],brand:a[3],name:a[4],p:(a[5]==null?null:a[5]),mwy:!!a[6],road:null,kw:a[7]||null,plugs:a[8]||null,ty:a[9]||null};
+    }).filter(function(o){return !!COUNTRY[o.cc];});
+   stations.ev=rows; LIVE.ev=!!(j.fuels&&j.fuels.ev&&j.fuels.ev.live);
+   AVG.ev={};var sums={},cnt={};
+   rows.forEach(function(x){if(x.p==null)return;sums[x.cc]=(sums[x.cc]||0)+x.p;cnt[x.cc]=(cnt[x.cc]||0)+1;});
+   Object.keys(COUNTRY).forEach(function(cc){AVG.ev[cc]=cnt[cc]?sums[cc]/cnt[cc]:null;});
+   EV_LOADED=true;EV_LOADING=false;
+   if(s)s.innerHTML=prev;
+   var et=rows.length,en=0;for(var w=0;w<et;w++){if(rows[w].p==null)en++;}
+   var note=el('evPriceNote');if(note&&et)note.textContent='Right now about '+Math.round(en/et*100)+'% of chargers ('+en.toLocaleString()+' of '+et.toLocaleString()+') have no public price, because EV tariffs depend on the driver\u2019s charging plan or roaming contract. Charger location and power (kW) are reliable; a price is shown only where the operator publishes one.';
+   updateChipCounts();
+   if(currentFuel==='ev'){refresh();if(currentView==='trends')buildTrends();}
+  })
+  .catch(function(){EV_LOADING=false;if(s)s.innerHTML=prev;toast('Could not load EV chargers \u2014 check connection.');});
+}
 function applyPayload(pl){
  try{
   var f=pl.fuels||{},any=false;
-  ['diesel','hvo','ev'].forEach(function(k){
+  ['diesel','hvo'].forEach(function(k){
    var fu=f[k]||{};
    var rows=(fu.stations||[]).map(function(a){
      return{lat:a[0],lng:a[1],cc:a[2],brand:a[3],name:a[4],p:(a[5]==null?null:a[5]),mwy:!!a[6],road:null,kw:a[7]||null,plugs:a[8]||null,ty:a[9]||null};
@@ -1442,7 +1551,7 @@ function applyPayload(pl){
   refreshBadges();
   refresh();
   updateChipCounts();
-  try{var et=stations.ev.length,en=0;for(var w=0;w<et;w++){if(stations.ev[w].p==null)en++;}
+  try{var et=stations.ev.length,en=0;if(!et)throw 0;for(var w=0;w<et;w++){if(stations.ev[w].p==null)en++;}
    var note=el('evPriceNote');
    if(note&&et){note.textContent='Right now about '+Math.round(en/et*100)+'% of chargers ('+en.toLocaleString()+' of '+et.toLocaleString()+') have no public price, because EV tariffs depend on the driver\u2019s charging plan or roaming contract. Charger location and power (kW) are reliable; a price is shown only where the operator publishes one.';}
   }catch(_e){}
