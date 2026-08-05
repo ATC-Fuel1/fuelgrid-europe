@@ -153,7 +153,8 @@
   .tc-foot{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
   .tc-foot small{color:#8a94a6;font-weight:600}
   .tc-up{color:#d64545}.tc-down{color:#12a150}.tc-flat{color:#8a94a6}
-  .searchbox{position:relative;display:flex;align-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:9px;overflow:hidden}
+  .searchbox{position:relative;display:flex;align-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:9px}
+  .searchbox input{border-radius:9px 0 0 9px}
   .searchbox input{background:transparent;border:0;outline:0;color:#fff;font-size:12.5px;padding:6px 9px;width:150px}
   .searchbox input::placeholder{color:rgba(255,255,255,.6)}
   .searchbox button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:13px;padding:5px 9px}
@@ -410,7 +411,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.5</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.6</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -594,7 +595,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.5';
+var APP_VER='5.6';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1266,7 +1267,7 @@ function suggestPlaces(text,cb){
  var key=orsKeyOrNull();
  if(!key){maybeAskGeoKey();key=orsKeyOrNull();}
  if(!key){photonSuggest(text,cb);return;}
- fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key='+key+'&size=8&boundary.country=&text='+encodeURIComponent(text))
+ fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key='+key+'&size=8&text='+encodeURIComponent(text))
   .then(function(r){return r.ok?r.json():null;})
   .then(function(j){var out=[];
    if(j&&j.features)j.features.forEach(function(f){var p=f.properties||{};out.push({label:p.label||p.name||'',lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]});});
@@ -1305,7 +1306,7 @@ attachAC('searchInput','acSearch',function(r){
 });
 function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
  if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
-var routeLayer=null,lastRoute=null,routeStops=[],lastFrom=null,lastTo=null;
+var routeLayer=null,lastRoute=null,routeStops=[],lastFrom=null,lastTo=null,routeBest=null;
 function closeAllPanels(except){
  [['ctyPanel','ctyBtn'],['cheapPanel','nearBtn'],['routePanel','routeBtn']].forEach(function(pr){
   if(pr[0]===except)return;
@@ -1332,6 +1333,7 @@ function findRoute(){
  });
 }
 function runRouting(fla,flo,tla,tlo){
+   lastFrom=[fla,flo];lastTo=[tla,tlo];
    var coords=[[flo,fla]];
    routeStops.forEach(function(w){coords.push([w[1],w[0]]);});
    coords.push([tlo,tla]);
@@ -1416,6 +1418,7 @@ function analyseRoute(latlngs,sum){
  var flagged=Object.keys(crossed).filter(function(cc){return !pricedByCc[cc];});
 
  var minP=near.length?near[0].s.p:null, maxP=near.length?near[near.length-1].s.p:null;
+ routeBest=near.length?[near[0].s.lat,near[0].s.lng,near[0].s.name]:null;
  renderRoute(near.slice(0,8),flagged,sum,R,near.length,minP,maxP);
 }
 function renderRoute(near,flagged,sum,R,total,minP,maxP){
@@ -1439,7 +1442,7 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];var gb=el('routeGmaps');if(gb)gb.hidden=true;var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;var gb=el('routeGmaps');if(gb)gb.hidden=true;var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
@@ -1452,10 +1455,12 @@ function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null
  });
  var gm=el('routeGmaps');if(gm)gm.addEventListener('click',function(){
   if(!lastFrom||!lastTo){toast('Find a route first.');return;}
+  var wp=routeStops.length?routeStops.slice():(routeBest?[routeBest]:[]);
   var u='https://www.google.com/maps/dir/?api=1&origin='+lastFrom[0]+','+lastFrom[1]+
         '&destination='+lastTo[0]+','+lastTo[1]+'&travelmode=driving';
-  if(routeStops.length)u+='&waypoints='+routeStops.map(function(w){return w[0]+','+w[1];}).join('|');
+  if(wp.length)u+='&waypoints='+wp.map(function(w){return w[0]+','+w[1];}).join('|');
   window.open(u,'_blank','noopener');
+  if(wp.length&&!routeStops.length)toast('Opening Lisbon\u2192cheapest stop\u2192destination in Google Maps');
  });
  ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
  var rk=el('routeKm');if(rk)rk.addEventListener('change',function(){if(lastRoute)analyseRoute(lastRoute.latlngs,lastRoute.sum);});
