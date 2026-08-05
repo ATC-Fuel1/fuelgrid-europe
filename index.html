@@ -294,6 +294,7 @@
   .tools{display:flex;align-items:center;gap:12px}
   .tools-btn{display:none}
   .menu-only{display:none}
+  .mobar{display:none}
   .coords{font-size:11px;color:#5d6779;cursor:pointer;font-variant-numeric:tabular-nums}
   .coords:hover{color:var(--sign-dark)}
   .go-menu{position:absolute;z-index:3000;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:10px;box-shadow:0 12px 30px rgba(16,24,40,.26);padding:5px;display:flex;flex-direction:column;min-width:150px}
@@ -305,57 +306,75 @@
 
   /* ---------- phone layout ---------- */
   @media (max-width: 760px){
-    header{position:relative;padding:6px 8px;gap:5px}
-    .brand{padding-right:40px}
+    /* ---- minimal top: brand + fuel only ---- */
+    header{position:relative;padding:6px 8px 5px;gap:5px}
+    .brand{padding-right:4px;flex:1 1 auto;min-width:0}
+    .brand .lights{display:none}
     .brand h1{font-size:13px}
     .ver{display:none}
-    .brand .lights{display:none}
-    .brand-txt .snapshot{display:inline-flex !important;font-size:9px;opacity:.85}
-
-    /* driver essentials only, compact */
+    .brand-txt{min-width:0}
+    .brand-txt .snapshot{display:inline-flex !important;font-size:9px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .fseg{order:2;flex-basis:100%;margin-left:0}
     .fseg::before{display:none}
-    .fseg button{flex:1;font-size:11px;padding:7px 3px;min-height:36px}
-    .head-right{order:3;flex-basis:100%;margin-left:0;gap:6px}
-    .searchbox{flex:1 1 auto}
-    .searchbox input{width:100%;font-size:16px;padding:7px 9px}
-    .route-wrap .btn-ghost,.cheap-wrap .btn-ghost{min-height:38px;padding:0 10px;font-size:12.5px}
-    #viewToggle{display:none}          /* Trends lives in the ⋯ menu on phone */
+    .fseg button{flex:1;font-size:11px;padding:8px 3px;min-height:38px}
 
-    /* office features hidden from the header (they live in the ⋯ menu) */
-    .viewseg,#resetBtn{display:none}
+    /* hide desktop header controls on phone - they move to the bottom bar */
+    .viewseg,#resetBtn,#viewToggle{display:none}
     .cty-wrap .cty-btn{display:none}
+    .head-right{order:3;flex-basis:100%;margin:0;padding:0;gap:0;min-height:0}
+    #routeBtn,#nearBtn,.tools-btn,.head-right>.route-wrap>#routeBtn{display:none}
+    .route-wrap,.cheap-wrap{position:static}
 
-    /* the ⋯ button, pinned top-right */
-    .tools-btn{display:inline-flex;position:absolute;top:9px;right:10px;z-index:6;font-size:18px;padding:0 12px;min-height:36px}
+    /* ---- fixed bottom action bar (thumb zone) ---- */
+    .mobar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:1500;
+      background:#0f1830;border-top:1px solid rgba(255,255,255,.10);
+      padding:6px 6px calc(6px + env(safe-area-inset-bottom));gap:4px}
+    .mobar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+      background:transparent;border:0;color:#c7d2e3;font-size:10.5px;font-weight:700;
+      padding:6px 2px;border-radius:10px;cursor:pointer;min-height:46px}
+    .mobar button span{font-size:19px;line-height:1}
+    .mobar button:active{background:rgba(255,255,255,.10);color:#fff}
 
-    /* ⋯ opens a bottom sheet menu */
-    .tools{display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:1250;
-      flex-direction:column;align-items:stretch;gap:8px;background:#fff;border-radius:16px;
+    /* search becomes a sheet opened from the bar */
+    .searchbox{display:none;position:fixed;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));
+      z-index:1560;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:14px;
+      padding:6px;box-shadow:0 -6px 30px rgba(16,24,40,.28)}
+    .searchbox.sopen{display:flex}
+    .searchbox input{width:100%;font-size:16px;padding:9px 10px;color:var(--sign-dark)}
+    .searchbox .searchclear,.searchbox #searchBtn{color:#5d6779}
+
+    /* sheets sit above the bottom bar */
+    .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;
+      bottom:calc(64px + env(safe-area-inset-bottom));top:auto;width:auto;max-width:none;
+      max-height:70vh;overflow:auto;border-radius:16px;padding:14px;z-index:1560}
+    .cty-grid{grid-template-columns:repeat(2,1fr);max-height:44vh}
+    .cty-grid .cbtn{padding:10px 8px;font-size:12.5px}
+    .route-panel input,.cheap-km input,.route-km input,.cheap-panel input{font-size:16px}
+    .route-result{max-height:36vh}
+    .ac-list{position:static;margin-top:6px;box-shadow:none;max-height:32vh}
+    .sheet-x{display:inline-block}
+    .route-head,.cheap-head,.cty-head{display:flex;align-items:center}
+
+    /* the More menu = bottom sheet above the bar */
+    .tools{display:none;position:fixed;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));
+      z-index:1560;flex-direction:column;align-items:stretch;gap:8px;background:#fff;border-radius:16px;
       padding:12px;box-shadow:0 -6px 34px rgba(16,24,40,.30);border:1px solid rgba(16,24,40,.08)}
     .tools.open{display:flex}
     .tools .btn-ghost{background:#f4f6fb;border-color:rgba(16,24,40,.14);color:var(--sign-dark);
       justify-content:flex-start;font-size:14px;min-height:46px;width:100%}
     .menu-only{display:block}
 
-    /* panels become bottom sheets, above the menu */
-    .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;bottom:8px;top:auto;
-      width:auto;max-width:none;max-height:76vh;overflow:auto;border-radius:16px;padding:14px;z-index:1400}
-    .cty-grid{grid-template-columns:repeat(2,1fr);max-height:46vh}
-    .cty-grid .cbtn{padding:10px 8px;font-size:12.5px}
-    .route-panel input,.cheap-km input,.route-km input,.cheap-panel input{font-size:16px}
-    .route-result{max-height:38vh}
-    .ac-list{position:static;margin-top:6px;box-shadow:none;max-height:34vh}
-    .sheet-x{display:inline-block}
-    .route-head,.cheap-head,.cty-head{display:flex;align-items:center}
-
-    /* stats panel + trends + popups */
-    .panel{left:8px !important;right:8px !important;width:auto !important;top:auto !important;bottom:8px !important;max-height:50vh}
+    /* stats panel + trends + map chrome clear the bar */
+    .panel{left:8px !important;right:8px !important;width:auto !important;top:auto !important;
+      bottom:calc(64px + env(safe-area-inset-bottom)) !important;max-height:46vh}
+    .leaflet-bottom{bottom:58px}
     .trend-grid{grid-template-columns:1fr}
-    .trends-inner{padding:16px 12px 32px}
+    .trends-inner{padding:16px 12px 80px}
     .hint{display:none}
-    .cheap-rad button,.trend-period button{min-height:38px}
-    .fm-pop .gpsdir,.fm-pop .gpscopy{padding:7px 12px}
+    .cheap-rad button,.trend-period button{min-height:40px}
+    .fm-pop .gpsdir,.fm-pop .gpscopy{padding:8px 12px}
+    .go-menu{position:fixed;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));
+      min-width:0;flex-direction:column}
   }
   @media (max-width: 860px){
     header{padding:8px 12px;gap:6px 8px}
@@ -377,7 +396,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.1</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.2</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -440,6 +459,12 @@
     </div>
   </div>
 </header>
+<nav class="mobar" id="mobar" aria-label="Actions">
+  <button id="mobSearch"><span>\uD83D\uDD0D</span>Search</button>
+  <button id="mobRoute"><span>\uD83D\uDEE3</span>Route</button>
+  <button id="mobCheap"><span>\u25CE</span>Cheapest</button>
+  <button id="mobMore"><span>\u2630</span>More</button>
+</nav>
 
 <div id="map" role="application" aria-label="Fuel price map of Spain, France, Germany and Italy"></div>
 <section id="trends" hidden aria-label="Price trends">
@@ -551,7 +576,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.1';
+var APP_VER='5.2';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1479,6 +1504,22 @@ document.addEventListener('keydown',function(e){
  var tb=el('toolsBtn');if(tb)tb.setAttribute('aria-expanded','false');
  map.closePopup();
 });
+/* phone bottom action bar */
+(function(){
+ function fire(id){var b=el(id);if(b)b.click();}
+ var ms=el('mobSearch');if(ms)ms.addEventListener('click',function(e){e.stopPropagation();
+   var sb=document.querySelector('.searchbox');if(!sb)return;
+   var open=!sb.classList.contains('sopen');
+   if(open){closeAllPanels();}
+   sb.classList.toggle('sopen',open);
+   if(open){var i=el('searchInput');if(i)setTimeout(function(){i.focus();},50);}
+ });
+ var mr=el('mobRoute');if(mr)mr.addEventListener('click',function(){var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('routeBtn');});
+ var mc=el('mobCheap');if(mc)mc.addEventListener('click',function(){var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('nearBtn');});
+ var mm=el('mobMore');if(mm)mm.addEventListener('click',function(){var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('toolsBtn');});
+ // close the search sheet after a successful search
+ var si=el('searchInput');if(si)si.addEventListener('keydown',function(e){if(e.key==='Enter'){var sb=document.querySelector('.searchbox');if(sb)setTimeout(function(){sb.classList.remove('sopen');},50);}});
+})();
 /* phone: the "more tools" menu */
 (function(){var b=el('toolsBtn'),t=el('tools');if(!b||!t)return;
   b.addEventListener('click',function(e){e.stopPropagation();var opening=!t.classList.contains('open');if(opening)closeAllPanels('tools');t.classList.toggle('open',opening);b.setAttribute('aria-expanded',opening?'true':'false');});
