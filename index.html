@@ -153,7 +153,7 @@
   .tc-foot{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
   .tc-foot small{color:#8a94a6;font-weight:600}
   .tc-up{color:#d64545}.tc-down{color:#12a150}.tc-flat{color:#8a94a6}
-  .searchbox{display:flex;align-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:9px;overflow:hidden}
+  .searchbox{position:relative;display:flex;align-items:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:9px;overflow:hidden}
   .searchbox input{background:transparent;border:0;outline:0;color:#fff;font-size:12.5px;padding:6px 9px;width:150px}
   .searchbox input::placeholder{color:rgba(255,255,255,.6)}
   .searchbox button{background:transparent;border:0;color:#fff;cursor:pointer;font-size:13px;padding:5px 9px}
@@ -171,6 +171,8 @@
   .route-km input{width:56px;margin:0;padding:5px 7px;text-align:center;font-size:12px}
   #routeFind{flex:1;border:0;background:#1a56c4;color:#fff;font-size:12.5px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
   #routeFind:hover{background:#1546a0}
+  .route-gmaps{width:100%;margin:8px 0 2px;border:1px solid rgba(26,86,196,.35);background:rgba(26,86,196,.08);color:#1a3f8a;font-size:12.5px;font-weight:700;padding:9px;border-radius:8px;cursor:pointer}
+  .route-gmaps:hover{background:rgba(26,86,196,.16)}
   .route-clear{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
   .route-result{max-height:44vh;overflow:auto}
   .route-summary{font-size:13px;font-weight:800;color:var(--sign-dark);margin:8px 0}
@@ -284,6 +286,7 @@
     *{transition:none !important;animation:none !important}
   }
   .ac-wrap{position:relative}
+  #acSearch{left:0;right:0;top:calc(100% + 6px);min-width:240px}
   .ac-list{position:absolute;left:0;right:0;top:calc(100% - 3px);background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:10px;box-shadow:0 12px 28px rgba(16,24,40,.20);z-index:1300;max-height:210px;overflow:auto}
   .ac-list[hidden]{display:none}
   .ac-item{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;font-size:12.5px;line-height:1.3;color:var(--sign-dark);cursor:pointer;border-bottom:1px solid rgba(16,24,40,.06)}
@@ -347,7 +350,8 @@
     .searchbox{display:none;position:fixed;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));
       z-index:1560;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:14px;
       padding:6px;box-shadow:0 -6px 30px rgba(16,24,40,.28)}
-    .searchbox.sopen{display:flex}
+    .searchbox.sopen{display:flex;flex-wrap:wrap}
+    #acSearch{flex-basis:100%;order:9}
     .searchbox input{width:100%;font-size:16px;padding:9px 10px;color:var(--sign-dark)}
     .searchbox .searchclear,.searchbox #searchBtn{color:#5d6779}
 
@@ -404,7 +408,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.3</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.4</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -434,7 +438,7 @@
   </nav>
   <div class="viewseg" id="viewseg" style="display:none"><button data-view="map" aria-pressed="true"></button><button data-view="trends" aria-pressed="false"></button></div>
   <div class="head-right">
-    <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button><button id="searchBtn" title="Search" aria-label="Search">🔍</button></div>
+    <div class="searchbox"><input id="searchInput" type="text" placeholder="Search city…" autocomplete="off" spellcheck="false"><button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button><button id="searchBtn" title="Search" aria-label="Search">🔍</button><div class="ac-list" id="acSearch" hidden></div></div>
     <div class="route-wrap">
       <button class="btn-ghost" id="routeBtn" title="Plan a truck route by fuel">🛣 Route</button>
       <div class="route-panel" id="routePanel" hidden>
@@ -443,6 +447,7 @@
         <div class="ac-wrap"><input id="routeTo" type="text" placeholder="To (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acTo" hidden></div></div>
         <div class="route-km"><span>Stations within</span><input id="routeKm" type="number" value="8" min="1" max="200" step="1"><span>km of route</span></div>
         <div class="route-actions"><button id="routeFind">Find route</button><button id="routeClear" class="route-clear">Clear</button></div>
+        <button id="routeGmaps" class="route-gmaps" hidden>🗺 Open route in Google Maps</button>
         <div id="routeResult" class="route-result"></div>
       </div>
     </div>
@@ -584,7 +589,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.3';
+var APP_VER='5.4';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1204,30 +1209,59 @@ function geocode(q,cb){
    .then(function(a){if(a&&a.length)cb(parseFloat(a[0].lat),parseFloat(a[0].lon),(a[0].display_name||q).split(',')[0]);else cb(null);})
    .catch(function(){cb(null);});
  }
- if(!key){nominatim();return;}
+ function photon(){
+  fetch('https://photon.komoot.io/api/?limit=1&lang=en&q='+encodeURIComponent(q))
+   .then(function(r){return r.ok?r.json():null;})
+   .then(function(j){
+    if(j&&j.features&&j.features.length){var f=j.features[0],c=f.geometry.coordinates;cb(c[1],c[0],(f.properties&&f.properties.name)||q);}
+    else nominatim();
+   }).catch(function(){nominatim();});
+ }
+ if(!key){photon();return;}
  fetch('https://api.openrouteservice.org/geocode/search?api_key='+key+'&size=1&text='+encodeURIComponent(q))
   .then(function(r){return r.ok?r.json():null;})
   .then(function(j){
    if(j&&j.features&&j.features.length){var f=j.features[0];cb(f.geometry.coordinates[1],f.geometry.coordinates[0],(f.properties&&(f.properties.name||f.properties.label))||q);}
-   else nominatim();
-  }).catch(function(){nominatim();});
+   else photon();
+  }).catch(function(){photon();});
 }
 function titleCase(x){return x.replace(/(^|\s)\w/g,function(c){return c.toUpperCase();});}
+function builtinSuggest(text){
+ var t=text.toLowerCase().replace(/\s+/g,''),out=[];
+ Object.keys(CITY).forEach(function(n){if(out.length<6&&n.indexOf(t)===0)out.push({label:titleCase(n),lat:CITY[n][0],lng:CITY[n][1]});});
+ return out;
+}
+function photonSuggest(text,cb){                 /* free, no key - includes villages */
+ fetch('https://photon.komoot.io/api/?limit=6&lang=en&q='+encodeURIComponent(text))
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(j){
+   var out=[];
+   if(j&&j.features)j.features.forEach(function(f){
+    var p=f.properties||{},c=f.geometry&&f.geometry.coordinates;
+    if(!c)return;
+    var bits=[p.name];
+    if(p.city&&p.city!==p.name)bits.push(p.city);
+    else if(p.county&&p.county!==p.name)bits.push(p.county);
+    if(p.state&&p.state!==p.name)bits.push(p.state);
+    if(p.country)bits.push(p.country);
+    out.push({label:bits.filter(Boolean).join(', '),lat:c[1],lng:c[0]});
+   });
+   if(out.length)cb(out);else cb(builtinSuggest(text));
+  })
+  .catch(function(){cb(builtinSuggest(text));});
+}
 function suggestPlaces(text,cb){
  var key=orsKeyOrNull();
- if(!key){
-  var t=text.toLowerCase().replace(/\s+/g,''),out=[];
-  Object.keys(CITY).forEach(function(n){if(out.length<6&&n.indexOf(t)===0)out.push({label:titleCase(n),lat:CITY[n][0],lng:CITY[n][1]});});
-  cb(out);return;
- }
+ if(!key){photonSuggest(text,cb);return;}
  fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key='+key+'&size=6&text='+encodeURIComponent(text))
   .then(function(r){return r.ok?r.json():null;})
   .then(function(j){var out=[];
    if(j&&j.features)j.features.forEach(function(f){var p=f.properties||{};out.push({label:p.label||p.name||'',lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]});});
-   cb(out.filter(function(r){return r.label;}));
-  }).catch(function(){cb([]);});
+   out=out.filter(function(r){return r.label;});
+   if(out.length)cb(out);else photonSuggest(text,cb);
+  }).catch(function(){photonSuggest(text,cb);});
 }
-function attachAC(inputId,listId){
+function attachAC(inputId,listId,onPick){
  var i=el(inputId),l=el(listId);if(!i||!l)return;var tm=null;
  i.addEventListener('input',function(){
   i.removeAttribute('data-lat');i.removeAttribute('data-lng');
@@ -1245,10 +1279,17 @@ function attachAC(inputId,listId){
   var r=(l._rows||[])[+b.getAttribute('data-ix')];if(!r)return;
   i.value=r.label;i.setAttribute('data-lat',r.lat);i.setAttribute('data-lng',r.lng);
   l.hidden=true;l.innerHTML='';
+  if(onPick)onPick(r);
  });
  i.addEventListener('blur',function(){setTimeout(function(){l.hidden=true;},200);});
 }
 attachAC('routeFrom','acFrom');attachAC('routeTo','acTo');
+attachAC('searchInput','acSearch',function(r){
+ var nm=(r.label||'').split(',')[0];
+ var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');
+ var c=el('searchClear');if(c)c.hidden=false;
+ flyToPlace(r.lat,r.lng,nm);showCheapestNear(r.lat,r.lng,nm,true);
+});
 function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
  if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
 var routeLayer=null,lastRoute=null,routeStops=[],lastFrom=null,lastTo=null;
@@ -1310,6 +1351,7 @@ function drawRoute(coords,sum){
  routeLayer=L.polyline(latlngs,{color:'#1a56c4',weight:5,opacity:.8}).addTo(map);
  try{map.fitBounds(routeLayer.getBounds().pad(0.12));}catch(e){}
  lastRoute={latlngs:latlngs,sum:sum};
+ var gb=el('routeGmaps');if(gb)gb.hidden=false;
  analyseRoute(latlngs,sum);
 }
 function gridPut(m,la,lo,cell,item){var k=Math.floor(la/cell)+'|'+Math.floor(lo/cell);(m[k]||(m[k]=[])).push(item);}
@@ -1367,8 +1409,8 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  var km=Math.round(sum.distance/1000),hrs=(sum.duration/3600);
  var h='<div class="route-summary">'+km+' km \u00b7 ~'+hrs.toFixed(1)+' h (truck)</div>';
  if(minP!=null&&maxP!=null&&maxP>minP){
-  var cdiff=Math.round((maxP-minP)*100);
-  h+='<div class="route-save">\uD83D\uDCB0 Up to <b>'+cdiff+'\u00A2/L</b> difference on this route \u2014 cheapest \u20ac'+fmtP(minP)+' vs priciest \u20ac'+fmtP(maxP)+' (of the priced stations near the route).</div>';
+  var cdiff=(maxP-minP).toFixed(2);
+  h+='<div class="route-save">Saving up to <b>\u20ac'+cdiff+'/L</b> \u2014 cheapest \u20ac'+fmtP(minP)+'/L vs dearest \u20ac'+fmtP(maxP)+'/L, among the '+fmtInt(total||0)+' priced stations within '+Math.round(R)+' km of your route.</div>';
  }
  if(flagged.length){
   var names=flagged.map(function(cc){return (COUNTRY[cc]||{name:cc}).name;}).join(', ');
@@ -1384,11 +1426,18 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];var gb=el('routeGmaps');if(gb)gb.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
  var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
+ var gm=el('routeGmaps');if(gm)gm.addEventListener('click',function(){
+  if(!lastFrom||!lastTo){toast('Find a route first.');return;}
+  var u='https://www.google.com/maps/dir/?api=1&origin='+lastFrom[0]+','+lastFrom[1]+
+        '&destination='+lastTo[0]+','+lastTo[1]+'&travelmode=driving';
+  if(routeStops.length)u+='&waypoints='+routeStops.map(function(w){return w[0]+','+w[1];}).join('|');
+  window.open(u,'_blank','noopener');
+ });
  ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
  var rk=el('routeKm');if(rk)rk.addEventListener('change',function(){if(lastRoute)analyseRoute(lastRoute.latlngs,lastRoute.sum);});
 })();
