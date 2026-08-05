@@ -173,6 +173,8 @@
   #routeFind:hover{background:#1546a0}
   .route-gmaps{width:100%;margin:8px 0 2px;border:1px solid rgba(26,86,196,.35);background:rgba(26,86,196,.08);color:#1a3f8a;font-size:12.5px;font-weight:700;padding:9px;border-radius:8px;cursor:pointer}
   .route-gmaps:hover{background:rgba(26,86,196,.16)}
+  .route-share{width:100%;margin:0 0 4px;border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
+  .route-share:hover{background:#e9edf5}
   .route-clear{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
   .route-result{max-height:44vh;overflow:auto}
   .route-summary{font-size:13px;font-weight:800;color:var(--sign-dark);margin:8px 0}
@@ -408,7 +410,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.4</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.5</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -448,6 +450,7 @@
         <div class="route-km"><span>Stations within</span><input id="routeKm" type="number" value="8" min="1" max="200" step="1"><span>km of route</span></div>
         <div class="route-actions"><button id="routeFind">Find route</button><button id="routeClear" class="route-clear">Clear</button></div>
         <button id="routeGmaps" class="route-gmaps" hidden>🗺 Open route in Google Maps</button>
+        <button id="routeShare" class="route-share" hidden>🔗 Copy shareable link</button>
         <div id="routeResult" class="route-result"></div>
       </div>
     </div>
@@ -568,6 +571,8 @@
     </ul>
     <h4>Methodology &amp; updates</h4>
     <p>Everything refreshes automatically <b>every day at 06:00 UTC</b> (plus any manual run). If an official feed is down on refresh day (Spain’s server, for example, rejects connections some days), the last good data is kept and marked, and the next run replaces it — the map never fabricates a price. UK prices convert £→€ at the daily ECB rate. EV prices are sanity-checked (values above €1.20/kWh are treated as non-euro or per-session tariffs and dropped). OpenStreetMap locations are cached in the repository, so a country’s stations never disappear if OSM rate-limits a run. National averages marked ≈ are the official EU weekly bulletin figures (or pinned indicative values for Norway and Switzerland), not station-level prices. <b>EU Weekly Oil Bulletin in use: <span id="wobDate">—</span></b> (diesel, prices with taxes).</p>
+    <h4>Known gaps &amp; honest limits</h4>
+    <p>So planners trust the numbers, here is what the map does <i>not</i> have: <b>Per-station prices</b> exist for 6 countries only (Germany, Spain, France, Italy, UK, Austria) — the other 15 show the EU national average, not individual station prices. <b>Germany</b> lists about 14,300 of ~15,000 stations; the rest are card-only or depot pumps that do not report to the public feed. <b>HVO100</b> per-station prices exist only in Spain and Italy (nobody else publishes them). <b>EV</b> shows a price for roughly 18% of chargers — the rest are plan- or roaming-based and have no public price (location and kW are still reliable). Prices can lag between refreshes; Germany updates when its local sweep is re-run.</p>
 
     <h4>Route planning (truck / HGV)</h4>
     <p>🛣 Routes come from <b>OpenRouteService</b> (openrouteservice.org) using its heavy-goods-vehicle profile on <b>OpenStreetMap</b> road data — real routing that avoids general truck-restricted roads (it is not yet tuned to a specific vehicle’s weight/height). Prices shown along a route are the same official station data as the map, and any country the route crosses that does not publish per-station prices is flagged as national-average only. “km off route” is measured to the nearest sampled point on the route line (accurate to within a few km), and the country flag is inferred from the nearest station, so it may be approximate right at a border.</p>
@@ -589,7 +594,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.4';
+var APP_VER='5.5';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1250,10 +1255,18 @@ function photonSuggest(text,cb){                 /* free, no key - includes vill
   })
   .catch(function(){cb(builtinSuggest(text));});
 }
+var _geoKeyAsked=false;
+function maybeAskGeoKey(){
+ if(_geoKeyAsked||orsKeyOrNull())return;
+ _geoKeyAsked=true;
+ var k=prompt('For full town & village search, paste your OpenRouteService key (the same one used for Route). It stays on this device. Leave blank to use basic search.');
+ if(k&&k.trim().length>15){ORS_KEY=k.trim();try{localStorage.setItem('fg_ors_key',ORS_KEY);}catch(e){}}
+}
 function suggestPlaces(text,cb){
  var key=orsKeyOrNull();
+ if(!key){maybeAskGeoKey();key=orsKeyOrNull();}
  if(!key){photonSuggest(text,cb);return;}
- fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key='+key+'&size=6&text='+encodeURIComponent(text))
+ fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key='+key+'&size=8&boundary.country=&text='+encodeURIComponent(text))
   .then(function(r){return r.ok?r.json():null;})
   .then(function(j){var out=[];
    if(j&&j.features)j.features.forEach(function(f){var p=f.properties||{};out.push({label:p.label||p.name||'',lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]});});
@@ -1351,7 +1364,7 @@ function drawRoute(coords,sum){
  routeLayer=L.polyline(latlngs,{color:'#1a56c4',weight:5,opacity:.8}).addTo(map);
  try{map.fitBounds(routeLayer.getBounds().pad(0.12));}catch(e){}
  lastRoute={latlngs:latlngs,sum:sum};
- var gb=el('routeGmaps');if(gb)gb.hidden=false;
+ var gb=el('routeGmaps');if(gb)gb.hidden=false;var sh=el('routeShare');if(sh)sh.hidden=false;
  analyseRoute(latlngs,sum);
 }
 function gridPut(m,la,lo,cell,item){var k=Math.floor(la/cell)+'|'+Math.floor(lo/cell);(m[k]||(m[k]=[])).push(item);}
@@ -1426,11 +1439,17 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];var gb=el('routeGmaps');if(gb)gb.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];var gb=el('routeGmaps');if(gb)gb.hidden=true;var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
  var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
+ var sh=el('routeShare');if(sh)sh.addEventListener('click',function(){
+  var f=(el('routeFrom').value||'').trim(),t=(el('routeTo').value||'').trim(),km=(el('routeKm')&&el('routeKm').value)||'8';
+  if(!f||!t){toast('Find a route first.');return;}
+  var u=location.origin+location.pathname+'?from='+encodeURIComponent(f)+'&to='+encodeURIComponent(t)+'&km='+encodeURIComponent(km);
+  try{navigator.clipboard.writeText(u);toast('Link copied \u2014 send it to a driver');}catch(e){prompt('Copy this link:',u);}
+ });
  var gm=el('routeGmaps');if(gm)gm.addEventListener('click',function(){
   if(!lastFrom||!lastTo){toast('Find a route first.');return;}
   var u='https://www.google.com/maps/dir/?api=1&origin='+lastFrom[0]+','+lastFrom[1]+
@@ -1663,6 +1682,19 @@ function applyPayload(pl){
 }
 
 map.on('moveend',debounce(refresh,120));
+(function(){
+ try{
+  var q=new URLSearchParams(location.search);
+  var f=q.get('from'),t=q.get('to'),km=q.get('km');
+  if(f&&t){
+   var rp=el('routePanel');if(rp){closeAllPanels&&closeAllPanels('routePanel');rp.hidden=false;var rb=el('routeBtn');if(rb)rb.classList.add('on');}
+   if(el('routeFrom'))el('routeFrom').value=f;
+   if(el('routeTo'))el('routeTo').value=t;
+   if(km&&el('routeKm'))el('routeKm').value=km;
+   setTimeout(function(){findRoute();},400);
+  }
+ }catch(e){}
+})();
 refresh();
 updateChipCounts();
 fetch('data/prices-latest.json?v='+Date.now(),{cache:'no-store'})
