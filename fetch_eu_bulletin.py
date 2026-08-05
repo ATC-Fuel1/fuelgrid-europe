@@ -77,13 +77,11 @@ def validate_xlsx(data):
         return False
 
 
-def current_saved_date():
-    """Date (yyyy-mm-dd) of the file already in the repo, if any."""
-    if not os.path.exists(OUT):
-        return ""
+def _a2_date(zf):
+    """Read the real bulletin date from cell A2 (an Excel serial date) of an
+    open zipfile. Returns yyyy-mm-dd or '' if it cannot be read."""
     try:
-        z = zipfile.ZipFile(OUT)
-        sheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8", "ignore")
+        sheet = zf.read("xl/worksheets/sheet1.xml").decode("utf-8", "ignore")
         m = re.search(r'<c r="A2"[^>]*><v>(\d+)', sheet)
         if m:
             import datetime as dt
@@ -92,6 +90,25 @@ def current_saved_date():
     except Exception:
         pass
     return ""
+
+
+def current_saved_date():
+    """Internal A2 date (yyyy-mm-dd) of the file already in the repo, if any."""
+    if not os.path.exists(OUT):
+        return ""
+    try:
+        return _a2_date(zipfile.ZipFile(OUT))
+    except Exception:
+        return ""
+
+
+def downloaded_date(data):
+    """Internal A2 date (yyyy-mm-dd) of the freshly downloaded bytes.
+    This is the REAL bulletin date, not the (often reused) filename date."""
+    try:
+        return _a2_date(zipfile.ZipFile(io.BytesIO(data)))
+    except Exception:
+        return ""
 
 
 def main():
@@ -128,10 +145,14 @@ def main():
         return 0
 
     old = current_saved_date()
-    new = best["date"]
-    print(f"existing file date: {old or '(none)'} | downloaded date: {new or '(unknown)'}")
-    if old and new and new <= old:
-        print("Not newer than what we already have - no change.")
+    new = downloaded_date(data)          # REAL internal date of the download
+    fname_hint = best["date"] or "(no date in filename)"
+    print(f"existing internal date: {old or '(none)'} | downloaded internal date: {new or '(unknown)'} | filename hint: {fname_hint}")
+    if not new:
+        print("Could not read the downloaded file's internal date - keeping existing file to be safe.")
+        return 0
+    if old and new <= old:
+        print("Downloaded bulletin is not newer than what we already have - no change.")
         return 0
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
