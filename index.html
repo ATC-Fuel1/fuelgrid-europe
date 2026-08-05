@@ -174,6 +174,7 @@
   .route-clear{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
   .route-result{max-height:44vh;overflow:auto}
   .route-summary{font-size:13px;font-weight:800;color:var(--sign-dark);margin:8px 0}
+  .route-save{background:#e9f9ef;border:1px solid #b6e6c7;color:#0d7a3d;font-size:12px;line-height:1.35;border-radius:8px;padding:8px 10px;margin-bottom:9px}
   .route-flag{background:#fff7e6;border:1px solid #f2d9a0;color:#8a5a00;font-size:11.5px;line-height:1.35;border-radius:8px;padding:8px 10px;margin-bottom:9px}
   .route-listhead{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#8a94a6;margin:4px 0 6px}
   .route-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(16,24,40,.08)}
@@ -291,8 +292,15 @@
   .cheap-km{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5d6779;margin:0 0 9px}
   .cheap-km input{width:64px;padding:5px 7px;text-align:center;font-size:12px;border:1px solid rgba(16,24,40,.18);border-radius:7px;color:var(--sign-dark)}
 
-  .tools{display:flex;align-items:center;gap:12px}
-  .tools-btn{display:none}
+  .head-right{position:relative}
+  .tools{display:none;position:absolute;top:calc(100% + 6px);right:0;flex-direction:column;align-items:stretch;gap:3px;
+    background:#fff;border:1px solid rgba(16,24,40,.10);border-radius:12px;box-shadow:0 16px 40px rgba(16,24,40,.22);
+    padding:6px;min-width:190px;z-index:1200}
+  .tools.open{display:flex}
+  .tools .btn-ghost{background:transparent;border:0;color:var(--sign-dark);justify-content:flex-start;width:100%;
+    padding:10px 11px;border-radius:8px;font-size:13px;min-height:0}
+  .tools .btn-ghost:hover{background:#f2f6fd}
+  .tools-btn{display:inline-flex;align-items:center;gap:5px}
   .menu-only{display:none}
   .mobar{display:none}
   .coords{font-size:11px;color:#5d6779;cursor:pointer;font-variant-numeric:tabular-nums}
@@ -396,7 +404,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.2</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.3</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -448,7 +456,7 @@
         <p class="cheap-hint">…or click any point on the map.</p>
       </div>
     </div>
-    <button class="btn-ghost tools-btn" id="toolsBtn" aria-expanded="false" aria-label="More tools">⋯</button>
+    <button class="btn-ghost tools-btn" id="toolsBtn" aria-expanded="false" aria-label="More">⋯ More</button>
     <div class="tools" id="tools">
     <button class="btn-ghost" id="viewToggle" title="Switch between map and price trends">📈 Trends</button>
     <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ Export CSV</button>
@@ -460,10 +468,10 @@
   </div>
 </header>
 <nav class="mobar" id="mobar" aria-label="Actions">
-  <button id="mobSearch"><span>\uD83D\uDD0D</span>Search</button>
-  <button id="mobRoute"><span>\uD83D\uDEE3</span>Route</button>
-  <button id="mobCheap"><span>\u25CE</span>Cheapest</button>
-  <button id="mobMore"><span>\u2630</span>More</button>
+  <button id="mobSearch"><span>🔍</span>Search</button>
+  <button id="mobRoute"><span>🛣</span>Route</button>
+  <button id="mobCheap"><span>◎</span>Cheapest</button>
+  <button id="mobMore"><span>☰</span>More</button>
 </nav>
 
 <div id="map" role="application" aria-label="Fuel price map of Spain, France, Germany and Italy"></div>
@@ -576,7 +584,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.2';
+var APP_VER='5.3';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1351,11 +1359,17 @@ function analyseRoute(latlngs,sum){
  });
  var pricedByCc={};(stations[currentFuel]||[]).forEach(function(s){if(s.p!=null)pricedByCc[s.cc]=1;});
  var flagged=Object.keys(crossed).filter(function(cc){return !pricedByCc[cc];});
- renderRoute(near.slice(0,8),flagged,sum,R,near.length);
+
+ var minP=near.length?near[0].s.p:null, maxP=near.length?near[near.length-1].s.p:null;
+ renderRoute(near.slice(0,8),flagged,sum,R,near.length,minP,maxP);
 }
-function renderRoute(near,flagged,sum,R,total){
+function renderRoute(near,flagged,sum,R,total,minP,maxP){
  var km=Math.round(sum.distance/1000),hrs=(sum.duration/3600);
  var h='<div class="route-summary">'+km+' km \u00b7 ~'+hrs.toFixed(1)+' h (truck)</div>';
+ if(minP!=null&&maxP!=null&&maxP>minP){
+  var cdiff=Math.round((maxP-minP)*100);
+  h+='<div class="route-save">\uD83D\uDCB0 Up to <b>'+cdiff+'\u00A2/L</b> difference on this route \u2014 cheapest \u20ac'+fmtP(minP)+' vs priciest \u20ac'+fmtP(maxP)+' (of the priced stations near the route).</div>';
+ }
  if(flagged.length){
   var names=flagged.map(function(cc){return (COUNTRY[cc]||{name:cc}).name;}).join(', ');
   h+='<div class="route-flag">\u26A0 Per-station prices are not published in: <b>'+esc(names)+'</b>. Those sections show the national average only \u2014 not exact station prices.</div>';
