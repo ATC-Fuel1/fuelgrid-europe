@@ -311,6 +311,7 @@
   .tools-btn{display:inline-flex;align-items:center;gap:5px}
   .menu-only{display:none}
   .mobar{display:none}
+  .tools-head{display:none;align-items:center;justify-content:space-between;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--sign-dark);padding:2px 2px 4px}
   .coords{font-size:11px;color:#5d6779;cursor:pointer;font-variant-numeric:tabular-nums}
   .coords:hover{color:var(--sign-dark)}
   .go-menu{position:absolute;z-index:3000;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:10px;box-shadow:0 12px 30px rgba(16,24,40,.26);padding:5px;display:flex;flex-direction:column;min-width:150px}
@@ -353,7 +354,7 @@
 
     /* search becomes a sheet opened from the bar */
     .searchbox{display:none;position:fixed;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));
-      z-index:1560;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:14px;
+      z-index:1650;background:#fff;border:1px solid rgba(16,24,40,.14);border-radius:14px;
       padding:6px;box-shadow:0 -6px 30px rgba(16,24,40,.28)}
     .searchbox.sopen{display:flex;flex-wrap:wrap}
     #acSearch{flex-basis:100%;order:9}
@@ -363,7 +364,7 @@
     /* sheets sit above the bottom bar */
     .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;
       bottom:calc(64px + env(safe-area-inset-bottom));top:auto;width:auto;max-width:none;
-      max-height:70vh;overflow:auto;border-radius:16px;padding:14px;z-index:1560}
+      max-height:calc(100dvh - 150px);overflow:auto;border-radius:16px;padding:14px;z-index:1650}
     .cty-grid{grid-template-columns:repeat(2,1fr);max-height:44vh}
     .cty-grid .cbtn{padding:10px 8px;font-size:12.5px}
     .route-panel input,.cheap-km input,.route-km input,.cheap-panel input{font-size:16px}
@@ -374,8 +375,11 @@
 
     /* the More menu = bottom sheet above the bar */
     .tools{display:none;position:fixed;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom));
-      z-index:1560;flex-direction:column;align-items:stretch;gap:8px;background:#fff;border-radius:16px;
+      z-index:1650;flex-direction:column;align-items:stretch;gap:8px;background:#fff;border-radius:16px;
+      max-height:calc(100dvh - 150px);overflow:auto;
       padding:12px;box-shadow:0 -6px 34px rgba(16,24,40,.30);border:1px solid rgba(16,24,40,.08)}
+    .tools-head{display:flex}
+    .tools .sheet-x{font-size:22px}
     .tools.open{display:flex}
     .tools .btn-ghost{background:#f4f6fb;border-color:rgba(16,24,40,.14);color:var(--sign-dark);
       justify-content:flex-start;font-size:14px;min-height:46px;width:100%}
@@ -413,7 +417,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.7</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.8</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -469,6 +473,7 @@
     </div>
     <button class="btn-ghost tools-btn" id="toolsBtn" aria-expanded="false" aria-label="More">⋯ More</button>
     <div class="tools" id="tools">
+      <div class="tools-head">More<button class="sheet-x" data-close="tools" aria-label="Close">×</button></div>
     <button class="btn-ghost" id="viewToggle" title="Switch between map and price trends">📈 Trends</button>
     <button class="btn-ghost" id="csvBtn" title="Download the stations currently in view as a CSV">⤓ Export CSV</button>
     <button class="btn-ghost" id="srcBtn">ℹ Sources</button>
@@ -597,7 +602,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.7';
+var APP_VER='5.8';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1581,7 +1586,9 @@ document.addEventListener('click',function(e){
 document.addEventListener('click',function(e){
  var b=e.target&&e.target.closest?e.target.closest('.sheet-x'):null;if(!b)return;
  e.stopPropagation();
- var p=el(b.getAttribute('data-close'));if(p)p.hidden=true;
+ var _id=b.getAttribute('data-close');var p=el(_id);
+ if(_id==='tools'){if(p)p.classList.remove('open');var tbb=el('toolsBtn');if(tbb)tbb.setAttribute('aria-expanded','false');}
+ else if(p)p.hidden=true;
  if(b.getAttribute('data-close')==='cheapPanel'){nearMode=false;var nb=el('nearBtn');if(nb){nb.classList.remove('on');nb.setAttribute('aria-expanded','false');}var mp=el('map');if(mp)mp.style.cursor='';}
  if(b.getAttribute('data-close')==='routePanel'){var rb=el('routeBtn');if(rb)rb.classList.remove('on');}
  if(b.getAttribute('data-close')==='ctyPanel'){var cb=el('ctyBtn');if(cb)cb.setAttribute('aria-expanded','false');}
@@ -1603,9 +1610,9 @@ document.addEventListener('keydown',function(e){
    sb.classList.toggle('sopen',open);
    if(open){var i=el('searchInput');if(i)setTimeout(function(){i.focus();},50);}
  });
- var mr=el('mobRoute');if(mr)mr.addEventListener('click',function(){var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('routeBtn');});
- var mc=el('mobCheap');if(mc)mc.addEventListener('click',function(){var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('nearBtn');});
- var mm=el('mobMore');if(mm)mm.addEventListener('click',function(){var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('toolsBtn');});
+ var mr=el('mobRoute');if(mr)mr.addEventListener('click',function(e){e.stopPropagation();var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('routeBtn');});
+ var mc=el('mobCheap');if(mc)mc.addEventListener('click',function(e){e.stopPropagation();var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('nearBtn');});
+ var mm=el('mobMore');if(mm)mm.addEventListener('click',function(e){e.stopPropagation();var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');fire('toolsBtn');});
  // close the search sheet after a successful search
  var si=el('searchInput');if(si)si.addEventListener('keydown',function(e){if(e.key==='Enter'){var sb=document.querySelector('.searchbox');if(sb)setTimeout(function(){sb.classList.remove('sopen');},50);}});
 })();
