@@ -186,6 +186,12 @@
   .route-flag{background:#fff7e6;border:1px solid #f2d9a0;color:#8a5a00;font-size:11.5px;line-height:1.35;border-radius:8px;padding:8px 10px;margin-bottom:9px}
   .route-listhead{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#8a94a6;margin:4px 0 6px}
   .route-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(16,24,40,.08)}
+  .route-acts{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .route-add{border:1px solid rgba(26,86,196,.4);background:rgba(26,86,196,.08);color:#1a3f8a;font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:7px;cursor:pointer;white-space:nowrap}
+  .route-add:hover{background:rgba(26,86,196,.16)}
+  .route-row.chosen{background:#e9f9ef;border-radius:8px}
+  .route-row.chosen .route-add{background:#0d7a3d;border-color:#0d7a3d;color:#fff}
+  .route-row.chosen .route-add::before{content:"\2713 "}
   .route-rank{width:18px;height:18px;flex:0 0 18px;border-radius:50%;background:#eef2fb;color:#2a3550;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
   .route-name{flex:1;font-size:12px;line-height:1.25;color:var(--sign-dark)}
   .route-price{font-weight:800;color:#12a150;font-variant-numeric:tabular-nums}
@@ -424,7 +430,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.0</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.1</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -610,7 +616,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.0';
+var APP_VER='6.1';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1322,7 +1328,7 @@ attachAC('searchInput','acSearch',function(r){
 });
 function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
  if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
-var routeLayer=null,lastRoute=null,routeStops=[],lastFrom=null,lastTo=null,routeBest=null;
+var routeLayer=null,lastRoute=null,routeStops=[],lastFrom=null,lastTo=null,routeBest=null,chosenStopName=null;
 function closeAllPanels(except){
  [['ctyPanel','ctyBtn'],['cheapPanel','nearBtn'],['routePanel','routeBtn']].forEach(function(pr){
   if(pr[0]===except)return;
@@ -1382,7 +1388,8 @@ function drawRoute(coords,sum){
  routeLayer=L.polyline(latlngs,{color:'#1a56c4',weight:5,opacity:.8}).addTo(map);
  try{map.fitBounds(routeLayer.getBounds().pad(0.12));}catch(e){}
  lastRoute={latlngs:latlngs,sum:sum};
- var gb=el('routeGmaps');if(gb)gb.hidden=false;var sh=el('routeShare');if(sh)sh.hidden=false;
+ routeStops=[];chosenStopName=null;
+ var gb=el('routeGmaps');if(gb){gb.hidden=false;gb.textContent='\uD83D\uDDFA Open route in Google Maps';}var sh=el('routeShare');if(sh)sh.hidden=false;
  analyseRoute(latlngs,sum);
 }
 function gridPut(m,la,lo,cell,item){var k=Math.floor(la/cell)+'|'+Math.floor(lo/cell);(m[k]||(m[k]=[])).push(item);}
@@ -1469,14 +1476,14 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  if(near.length){
   h+='<div class="route-listhead">Cheapest '+currentFuel.toUpperCase()+' along the route <span style="font-weight:600;color:#8a94a6">('+fmtInt(total||near.length)+' within '+Math.round(R)+' km)</span></div>';
   near.forEach(function(o,i){
-   h+='<div class="route-row" data-la="'+o.s.lat+'" data-lo="'+o.s.lng+'"><span class="route-rank">'+(i+1)+'</span><span class="route-name">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km off route</small></span><span class="route-price">\u20ac'+fmtP(o.s.p)+'</span><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></div>';
+   h+='<div class="route-row" data-la="'+o.s.lat+'" data-lo="'+o.s.lng+'" data-nm="'+esc(o.s.name)+'"><span class="route-rank">'+(i+1)+'</span><span class="route-name">'+esc(o.s.name)+'<br><small>'+((COUNTRY[o.s.cc]||{name:o.s.cc}).name)+' \u00b7 '+o.d.toFixed(0)+' km off route</small></span><span class="route-price">\u20ac'+fmtP(o.s.p)+'</span><span class="route-acts"><button class="route-add" data-addstop="1" title="Use this as the fuel stop in the route">+ Stop</button><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+o.s.lat+','+o.s.lng+'">Go</a></span></div>';
   });
  }else{
   h+='<div class="route-msg">No priced '+currentFuel+' stations found within '+Math.round(R)+' km of this route.</div>';
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;var gb=el('routeGmaps');if(gb)gb.hidden=true;var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;chosenStopName=null;var gb=el('routeGmaps');if(gb){gb.hidden=true;gb.textContent='\uD83D\uDDFA Open route in Google Maps';}var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
@@ -1494,7 +1501,7 @@ function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null
         '&destination='+lastTo[0]+','+lastTo[1]+'&travelmode=driving';
   if(wp.length)u+='&waypoints='+wp.map(function(w){return w[0]+','+w[1];}).join('|');
   window.open(u,'_blank','noopener');
-  if(wp.length&&!routeStops.length)toast('Opening Lisbon\u2192cheapest stop\u2192destination in Google Maps');
+  if(routeStops.length)toast('Opening route via '+(chosenStopName||'your fuel stop')+' in Google Maps');
  });
  ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
  var rk=el('routeKm');if(rk)rk.addEventListener('change',function(){if(lastRoute)analyseRoute(lastRoute.latlngs,lastRoute.sum);});
@@ -1613,8 +1620,23 @@ document.addEventListener('click',function(e){
 });
 /* click a route / cheapest result row -> fly to that station */
 document.addEventListener('click',function(e){
+ /* "+ Stop": make this station THE single fuel stop for the route */
+ var addb=e.target&&e.target.closest?e.target.closest('[data-addstop]'):null;
+ if(addb){
+  e.preventDefault();e.stopPropagation();
+  var rr=addb.closest('.route-row');if(!rr)return;
+  var sla=parseFloat(rr.getAttribute('data-la')),slo=parseFloat(rr.getAttribute('data-lo')),snm=rr.getAttribute('data-nm')||'fuel stop';
+  if(isNaN(sla)||isNaN(slo))return;
+  routeStops=[[sla,slo]];chosenStopName=snm;
+  /* highlight only the chosen row */
+  Array.prototype.forEach.call(document.querySelectorAll('.route-row'),function(x){x.classList.remove('chosen');});
+  rr.classList.add('chosen');
+  var gm=el('routeGmaps');if(gm){gm.textContent='\uD83D\uDDFA Open route via '+snm+' in Google Maps';gm.hidden=false;}
+  toast('Fuel stop set: '+snm+' \u2014 now tap "Open route in Google Maps"');
+  return;
+ }
  var row=e.target&&e.target.closest?e.target.closest('.route-row,.nearrow'):null;
- if(!row||(e.target.closest&&e.target.closest('a')))return;
+ if(!row||(e.target.closest&&e.target.closest('a'))||(e.target.closest&&e.target.closest('button')))return;
  var la=parseFloat(row.getAttribute('data-la')),lo=parseFloat(row.getAttribute('data-lo'));
  if(isNaN(la)||isNaN(lo))return;
  var z=Math.max(map.getZoom(),STATION_ZOOM);
