@@ -178,9 +178,6 @@
   .route-share:hover{background:#e9edf5}
   .route-clear{border:1px solid rgba(16,24,40,.18);background:#f4f6fb;color:var(--sign-dark);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
   .route-result{max-height:56vh;overflow:auto}
-  .route-veh{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5d6779;margin:0 0 9px}
-  .route-veh button{border:1px solid rgba(16,24,40,.16);background:#f4f6fb;color:var(--sign-dark);font-size:11px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer}
-  .route-veh button.on{background:var(--sign);border-color:var(--sign);color:#fff}
   .route-save small{display:block;margin-top:4px;font-size:11px;font-weight:600;color:#3d6b4f;line-height:1.35}
   .searchbox .skm{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#dbe5f7;white-space:nowrap;padding:0 7px;border-left:1px solid rgba(255,255,255,.18)}
   .searchbox .skm input{width:44px;flex:0 0 44px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:6px;color:#fff;font-size:11.5px;font-weight:700;padding:3px 4px;text-align:center;margin:0}
@@ -370,7 +367,6 @@
       border-left:0;padding:8px 4px 2px}
     .searchbox .skm input{width:70px;flex:0 0 70px;background:#f4f6fb;border:1px solid rgba(16,24,40,.18);
       color:var(--sign-dark);font-size:16px;padding:7px 4px}
-    .route-veh button{min-height:40px;padding:7px 14px;font-size:12.5px}
 
     /* sheets sit above the bottom bar */
     .cty-panel,.cheap-panel,.route-panel{position:fixed;left:8px;right:8px;
@@ -428,7 +424,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v5.9</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.0</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -466,7 +462,6 @@
         <div class="ac-wrap"><input id="routeFrom" type="text" placeholder="From (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acFrom" hidden></div></div>
         <div class="ac-wrap"><input id="routeTo" type="text" placeholder="To (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acTo" hidden></div></div>
         <div class="route-km"><span>Stations within</span><input id="routeKm" type="number" value="8" min="1" max="200" step="1"><span>km of route</span></div>
-        <div class="route-veh" id="routeVeh"><span>Saving per fill for</span><button data-v="truck" class="on">Truck</button><button data-v="van">Van</button></div>
         <div class="route-actions"><button id="routeFind">Find route</button><button id="routeClear" class="route-clear">Clear</button></div>
         <button id="routeGmaps" class="route-gmaps" hidden>🗺 Open route in Google Maps</button>
         <button id="routeShare" class="route-share" hidden>🔗 Copy shareable link</button>
@@ -615,7 +610,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='5.9';
+var APP_VER='6.0';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1322,7 +1317,8 @@ attachAC('searchInput','acSearch',function(r){
  var nm=(r.label||'').split(',')[0];
  var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');
  var c=el('searchClear');if(c)c.hidden=false;
- flyToPlace(r.lat,r.lng,nm);showCheapestNear(r.lat,r.lng,nm,true);
+ var _sk=el('searchKm'),_v=_sk?parseFloat(_sk.value):NaN;if(_v>0)searchRadius=_v;
+ flyToPlace(r.lat,r.lng,nm);showCheapestNear(r.lat,r.lng,nm,true,searchRadius);
 });
 function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
  if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
@@ -1449,26 +1445,20 @@ var FILL={
  hvo:   {truck:277.7,van:60.0},
  ev:    {truck:null, van:null}
 };
-var vehType='truck';
-var lastRender=null;
 function renderRoute(near,flagged,sum,R,total,minP,maxP){
- lastRender={near:near,flagged:flagged,sum:sum,R:R,total:total,minP:minP,maxP:maxP};
  var km=Math.round(sum.distance/1000),hrs=(sum.duration/3600);
  var h='<div class="route-summary">'+km+' km \u00b7 ~'+hrs.toFixed(1)+' h (truck)</div>';
  if(minP!=null&&maxP!=null&&maxP>minP){
   var spread=maxP-minP, unit=(META[currentFuel]||{}).unit||'\u20ac/L';
-  var vol=(FILL[currentFuel]||{})[vehType];
-  h+='<div class="route-save">';
-  if(vol>0){
-   var perFill=spread*vol;
-   h+='Saving up to <b>\u20ac'+perFill.toFixed(0)+' per fill</b> ('+(vehType==='van'?'van':'truck')+
-      ', avg '+vol.toFixed(1)+' L/fill)'+
-      '<small>\u20ac'+spread.toFixed(3)+'/L spread \u00b7 cheapest \u20ac'+fmtP(minP)+' vs dearest \u20ac'+fmtP(maxP)+
-      ', among the '+fmtInt(total||0)+' priced stations within '+Math.round(R)+' km of your route.</small>';
+  var vol=(FILL[currentFuel]||{}), tV=vol.truck, vV=vol.van;
+  h+='<div class="route-save">Saving up to <b>\u20ac'+spread.toFixed(3)+unit.slice(1)+'</b> \u2014 cheapest \u20ac'+fmtP(minP)+' vs dearest \u20ac'+fmtP(maxP)+', among the '+fmtInt(total||0)+' priced stations within '+Math.round(R)+' km of your route.';
+  if(tV>0||vV>0){
+   h+='<small>';
+   if(tV>0)h+='Truck: up to <b>\u20ac'+(spread*tV).toFixed(0)+' per fill</b> (avg '+tV.toFixed(1)+' L)<br>';
+   if(vV>0)h+='Van: up to <b>\u20ac'+(spread*vV).toFixed(0)+' per fill</b> (avg '+vV.toFixed(1)+' L)';
+   h+='</small>';
   }else{
-   h+='Saving up to <b>\u20ac'+spread.toFixed(3)+unit.slice(1)+'</b> \u2014 cheapest \u20ac'+fmtP(minP)+' vs dearest \u20ac'+fmtP(maxP)+
-      ', among the '+fmtInt(total||0)+' priced stations within '+Math.round(R)+' km of your route.'+
-      '<small>Per-charge saving needs average kWh per session \u2014 not yet loaded.</small>';
+   h+='<small>Per-charge saving needs average kWh per session \u2014 not yet loaded.</small>';
   }
   h+='</div>';
  }
@@ -1486,17 +1476,11 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;lastRender=null;var gb=el('routeGmaps');if(gb)gb.hidden=true;var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;var gb=el('routeGmaps');if(gb)gb.hidden=true;var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
  var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
- var vv=el('routeVeh');if(vv)vv.addEventListener('click',function(e){
-  var t=e.target.closest?e.target.closest('button'):null;if(!t)return;
-  vehType=t.getAttribute('data-v')||'truck';
-  Array.prototype.forEach.call(vv.querySelectorAll('button'),function(x){x.classList.toggle('on',x===t);});
-  if(lastRender)renderRoute(lastRender.near,lastRender.flagged,lastRender.sum,lastRender.R,lastRender.total,lastRender.minP,lastRender.maxP);
- });
  var sh=el('routeShare');if(sh)sh.addEventListener('click',function(){
   var f=(el('routeFrom').value||'').trim(),t=(el('routeTo').value||'').trim(),km=(el('routeKm')&&el('routeKm').value)||'8';
   if(!f||!t){toast('Find a route first.');return;}
