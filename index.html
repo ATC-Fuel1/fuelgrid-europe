@@ -430,7 +430,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.1</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.2</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -616,7 +616,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.1';
+var APP_VER='6.2';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -864,7 +864,7 @@ function popupHtml(s,mode){
  }
  var gps=s.lat.toFixed(5)+", "+s.lng.toFixed(5);
  html+='<div class="row gpsrow"><span class="gps">\uD83D\uDCCD '+gps+'</span><span class="gpsbtns"><a class="gpsdir" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng+'">Directions</a><button class="gpscopy" data-gps="'+gps+'" title="Copy coordinates">Copy</button></span></div>';
- html+='<div class="foot">Updated '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'no live data for this fuel')+'</div></div>';
+ html+='<div class="foot">Last refreshed '+SNAP+' \u00b7 '+(LIVE[currentFuel]?'live data':'no live data for this fuel')+'</div></div>';
  return html;
 }
 
@@ -1699,7 +1699,7 @@ function refreshBadges(){
  if(tag)tag.style.display='none';
  if(live.length===0){el('snapshot').textContent='No live data loaded';return;}
  var liveTxt=live.map(function(k){return names[k];}).join(' + ');
- el('snapshot').innerHTML='<span class="dot"></span>Updated '+SNAP+' \u00b7 auto-refresh daily';
+ el('snapshot').innerHTML='<span class="dot"></span>Last refreshed '+SNAP;
 }
 var EV_LOADED=false,EV_LOADING=false;
 function loadEV(){
@@ -1743,6 +1743,7 @@ function applyPayload(pl){
    Object.keys(COUNTRY).forEach(function(cc){AVG[fk][cc]=cnt[cc]?sums[cc]/cnt[cc]:null;});
   });
   if(pl.snapshot_label)SNAP=pl.snapshot_label;
+  if(pl.generated){var gd=new Date(pl.generated);if(!isNaN(gd)){SNAP=gd.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][gd.getMonth()]+' '+gd.getFullYear();}}
   if(pl.manual_avg)MANUAL=pl.manual_avg;
   if(pl.wob_date){WOB_DATE=pl.wob_date;var wd=el('wobDate');if(wd)wd.textContent=WOB_DATE;}
   refreshBadges();
