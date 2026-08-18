@@ -440,7 +440,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.3</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.4</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -627,7 +627,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.3';
+var APP_VER='6.4';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1483,6 +1483,7 @@ function applyHighwayFilter(){
  var key=routeBBoxKey();
  if(hwWays&&hwWaysKey===key){finishHighwayFilter();return;}
  var wrap=document.querySelector('.route-hw');if(wrap)wrap.classList.add('busy');
+ toast('Checking motorway stations\u2026 this can take a few seconds on long routes');
  fetchHighwayWays(function(ways,err){
   if(wrap)wrap.classList.remove('busy');
   if(err||!ways){
@@ -1503,26 +1504,53 @@ function finishHighwayFilter(){
 }
 function fetchHighwayWays(cb){
  if(!lastSamples.length){cb(null,'no route');return;}
- var minLa=90,maxLa=-90,minLo=180,maxLo=-180;
- lastSamples.forEach(function(p){if(p[0]<minLa)minLa=p[0];if(p[0]>maxLa)maxLa=p[0];if(p[1]<minLo)minLo=p[1];if(p[1]>maxLo)maxLo=p[1];});
- var pad=0.05;
- var bbox=(minLa-pad).toFixed(3)+','+(minLo-pad).toFixed(3)+','+(maxLa+pad).toFixed(3)+','+(maxLo+pad).toFixed(3);
- var q='[out:json][timeout:25];(way["highway"~"^(motorway|trunk|motorway_link|trunk_link)$"]('+bbox+'););out geom;';
- var eps=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
- var idx=0;
- function tryOne(){
-  var ctrl=('AbortController'in window)?new AbortController():null;
-  var to=setTimeout(function(){if(ctrl)ctrl.abort();},27000);
-  fetch(eps[idx]+'?data='+encodeURIComponent(q),{signal:ctrl?ctrl.signal:undefined})
-   .then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();})
-   .then(function(j){clearTimeout(to);
-    var ways=[];(j.elements||[]).forEach(function(e){if(e.geometry){ways.push(e.geometry.map(function(g){return [g.lat,g.lon];}));}});
-    if(!ways.length){cb(null,'empty');return;}
-    cb(ways,null);
-   })
-   .catch(function(err){clearTimeout(to);idx++;if(idx<eps.length){tryOne();}else{cb(null,err.message||'fail');}});
+ /* Build a handful of SMALL boxes strung along the route, instead of one
+    giant bbox. A giant bbox over an international route pulls half of
+    Europe's motorways and Overpass refuses it. Small boxes are fast. */
+ var pts=lastSamples;
+ var boxes=[], curMinLa=90,curMaxLa=-90,curMinLo=180,curMaxLo=-180;
+ function pushBox(){ if(curMaxLa>-90){ boxes.push([curMinLa,curMinLo,curMaxLa,curMaxLo]); } curMinLa=90;curMaxLa=-90;curMinLo=180;curMaxLo=-180; }
+ for(var i=0;i<pts.length;i++){
+  var la=pts[i][0],lo=pts[i][1];
+  if(la<curMinLa)curMinLa=la;if(la>curMaxLa)curMaxLa=la;
+  if(lo<curMinLo)curMinLo=lo;if(lo>curMaxLo)curMaxLo=lo;
+  if((curMaxLa-curMinLa)>1.2||(curMaxLo-curMinLo)>1.2){pushBox();
+   curMinLa=curMaxLa=la;curMinLo=curMaxLo=lo;}
  }
- tryOne();
+ pushBox();
+ if(!boxes.length){cb(null,'no boxes');return;}
+
+ var pad=0.06, eps=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+ var allWays=[], anyOk=false;
+
+ function fetchBox(b,onDone){
+  var bbox=(b[0]-pad).toFixed(3)+','+(b[1]-pad).toFixed(3)+','+(b[2]+pad).toFixed(3)+','+(b[3]+pad).toFixed(3);
+  var q='[out:json][timeout:20];(way["highway"~"^(motorway|trunk|motorway_link|trunk_link)$"]('+bbox+'););out geom;';
+  var idx=0;
+  function tryEp(){
+   var ctrl=('AbortController'in window)?new AbortController():null;
+   var to=setTimeout(function(){if(ctrl)ctrl.abort();},22000);
+   fetch(eps[idx]+'?data='+encodeURIComponent(q),{signal:ctrl?ctrl.signal:undefined})
+    .then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();})
+    .then(function(j){clearTimeout(to);
+     (j.elements||[]).forEach(function(e){if(e.geometry){allWays.push(e.geometry.map(function(g){return [g.lat,g.lon];}));}});
+     anyOk=true;onDone();
+    })
+    .catch(function(){clearTimeout(to);idx++;if(idx<eps.length){tryEp();}else{onDone();}});
+  }
+  tryEp();
+ }
+
+ var qi=0;
+ function next(){
+  if(qi>=boxes.length){
+   if(anyOk&&allWays.length)cb(allWays,null);
+   else cb(null,'empty');
+   return;
+  }
+  fetchBox(boxes[qi],function(){qi++;next();});
+ }
+ next();
 }
 /* ---- average litres per fill, from ATC DKV + AS24 card data Jan-May 2026 ----
    Truck = Rigid + Tractor + Truck combined. Van = Van.
