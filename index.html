@@ -169,6 +169,15 @@
   .route-panel input{width:100%;box-sizing:border-box;border:1px solid rgba(16,24,40,.18);border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:7px;color:var(--sign-dark)}
   .route-actions{display:flex;gap:7px;margin-bottom:4px}
   .route-km{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#5d6779;margin:0 0 8px}
+  .route-hw{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px;cursor:pointer;user-select:none}
+  .route-hw .hw-txt{font-size:11.5px;font-weight:700;color:var(--sign-dark)}
+  .route-hw .hw-sw{position:relative;flex:0 0 auto;width:42px;height:24px}
+  .route-hw .hw-sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2}
+  .route-hw .hw-slider{position:absolute;inset:0;background:#c7ccd6;border-radius:24px;transition:background .18s}
+  .route-hw .hw-slider::before{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .18s}
+  .route-hw .hw-sw input:checked+.hw-slider{background:#34c759}
+  .route-hw .hw-sw input:checked+.hw-slider::before{transform:translateX(18px)}
+  .route-hw.busy .hw-txt::after{content:" \2026";opacity:.6}
   .route-km input{width:56px;margin:0;padding:5px 7px;text-align:center;font-size:12px}
   #routeFind{flex:1;border:0;background:#1a56c4;color:#fff;font-size:12.5px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer}
   #routeFind:hover{background:#1546a0}
@@ -382,6 +391,7 @@
     .cty-grid .cbtn{padding:10px 8px;font-size:12.5px}
     .route-panel input,.cheap-km input,.route-km input,.cheap-panel input{font-size:16px}
     .route-result{max-height:36vh}
+    .route-hw .hw-txt{font-size:13px}
     .ac-list{position:static;margin-top:6px;box-shadow:none;max-height:32vh}
     .sheet-x{display:inline-block}
     .route-head,.cheap-head,.cty-head{display:flex;align-items:center}
@@ -430,7 +440,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.2</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.3</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -468,6 +478,7 @@
         <div class="ac-wrap"><input id="routeFrom" type="text" placeholder="From (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acFrom" hidden></div></div>
         <div class="ac-wrap"><input id="routeTo" type="text" placeholder="To (city or town)" autocomplete="off" spellcheck="false"><div class="ac-list" id="acTo" hidden></div></div>
         <div class="route-km"><span>Stations within</span><input id="routeKm" type="number" value="8" min="1" max="200" step="1"><span>km of route</span></div>
+        <label class="route-hw" for="hwToggle"><span class="hw-txt">Motorway stations only</span><span class="hw-sw"><input type="checkbox" id="hwToggle"><span class="hw-slider"></span></span></label>
         <div class="route-actions"><button id="routeFind">Find route</button><button id="routeClear" class="route-clear">Clear</button></div>
         <button id="routeGmaps" class="route-gmaps" hidden>🗺 Open route in Google Maps</button>
         <button id="routeShare" class="route-share" hidden>🔗 Copy shareable link</button>
@@ -616,7 +627,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.2';
+var APP_VER='6.3';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1442,7 +1453,76 @@ function analyseRoute(latlngs,sum){
 
  var minP=near.length?near[0].s.p:null, maxP=near.length?near[near.length-1].s.p:null;
  routeBest=near.length?[near[0].s.lat,near[0].s.lng,near[0].s.name]:null;
- renderRoute(near.slice(0,8),flagged,sum,R,near.length,minP,maxP);
+ lastNear=near; lastSamples=samples; lastFlagged=flagged; lastSum=sum; lastR=R;
+ if(el('hwToggle')&&el('hwToggle').checked){applyHighwayFilter();}
+ else{renderRoute(near.slice(0,8),flagged,sum,R,near.length,minP,maxP);}
+}
+/* ---- highway-only filter (live OSM motorway + trunk geometry) ---- */
+var lastNear=[],lastSamples=[],lastFlagged=[],lastSum=null,lastR=8,hwWays=null,hwWaysKey='';
+function routeBBoxKey(){return lastSamples.length?(lastSamples[0][0].toFixed(2)+','+lastSamples[0][1].toFixed(2)+'|'+lastSamples[lastSamples.length-1][0].toFixed(2)+','+lastSamples[lastSamples.length-1][1].toFixed(2)+'|'+lastSamples.length):'';}
+function distToWaysM(la,lo,ways){
+ /* metres from point to nearest motorway/trunk segment (point-to-segment) */
+ var best=1e12,T=Math.PI/180,cosla=Math.cos(la*T),M=111320;
+ var px=lo*M*cosla, py=la*M;
+ for(var w=0;w<ways.length;w++){var pts=ways[w];
+  for(var i=0;i<pts.length-1;i++){
+   var ax=pts[i][1]*M*cosla, ay=pts[i][0]*M;
+   var bx=pts[i+1][1]*M*cosla, by=pts[i+1][0]*M;
+   var vx=bx-ax, vy=by-ay, wx=px-ax, wy=py-ay;
+   var len2=vx*vx+vy*vy, t=len2?((wx*vx+wy*vy)/len2):0;
+   if(t<0)t=0;else if(t>1)t=1;
+   var cx=ax+t*vx, cy=ay+t*vy, dx=px-cx, dy=py-cy;
+   var d=dx*dx+dy*dy; if(d<best)best=d;
+  }
+  if(pts.length===1){var sx=pts[0][1]*M*cosla,sy=pts[0][0]*M,ddx=px-sx,ddy=py-sy,d1=ddx*ddx+ddy*ddy;if(d1<best)best=d1;}
+ }
+ return Math.sqrt(best);
+}
+function applyHighwayFilter(){
+ if(!lastNear.length){renderRoute([],lastFlagged,lastSum,lastR,0,null,null);return;}
+ var key=routeBBoxKey();
+ if(hwWays&&hwWaysKey===key){finishHighwayFilter();return;}
+ var wrap=document.querySelector('.route-hw');if(wrap)wrap.classList.add('busy');
+ fetchHighwayWays(function(ways,err){
+  if(wrap)wrap.classList.remove('busy');
+  if(err||!ways){
+   toast('Highway data unavailable right now \u2014 showing all stations');
+   var t=el('hwToggle');if(t)t.checked=false;
+   renderRoute(lastNear.slice(0,8),lastFlagged,lastSum,lastR,lastNear.length,lastNear.length?lastNear[0].s.p:null,lastNear.length?lastNear[lastNear.length-1].s.p:null);
+   return;
+  }
+  hwWays=ways;hwWaysKey=key;finishHighwayFilter();
+ });
+}
+function finishHighwayFilter(){
+ var kept=lastNear.filter(function(o){return distToWaysM(o.s.lat,o.s.lng,hwWays)<=300;});
+ if(!kept.length){toast('No motorway stations found along this route');}
+ var minP=kept.length?kept[0].s.p:null,maxP=kept.length?kept[kept.length-1].s.p:null;
+ routeBest=kept.length?[kept[0].s.lat,kept[0].s.lng,kept[0].s.name]:null;
+ renderRoute(kept.slice(0,8),lastFlagged,lastSum,lastR,kept.length,minP,maxP);
+}
+function fetchHighwayWays(cb){
+ if(!lastSamples.length){cb(null,'no route');return;}
+ var minLa=90,maxLa=-90,minLo=180,maxLo=-180;
+ lastSamples.forEach(function(p){if(p[0]<minLa)minLa=p[0];if(p[0]>maxLa)maxLa=p[0];if(p[1]<minLo)minLo=p[1];if(p[1]>maxLo)maxLo=p[1];});
+ var pad=0.05;
+ var bbox=(minLa-pad).toFixed(3)+','+(minLo-pad).toFixed(3)+','+(maxLa+pad).toFixed(3)+','+(maxLo+pad).toFixed(3);
+ var q='[out:json][timeout:25];(way["highway"~"^(motorway|trunk|motorway_link|trunk_link)$"]('+bbox+'););out geom;';
+ var eps=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+ var idx=0;
+ function tryOne(){
+  var ctrl=('AbortController'in window)?new AbortController():null;
+  var to=setTimeout(function(){if(ctrl)ctrl.abort();},27000);
+  fetch(eps[idx]+'?data='+encodeURIComponent(q),{signal:ctrl?ctrl.signal:undefined})
+   .then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();})
+   .then(function(j){clearTimeout(to);
+    var ways=[];(j.elements||[]).forEach(function(e){if(e.geometry){ways.push(e.geometry.map(function(g){return [g.lat,g.lon];}));}});
+    if(!ways.length){cb(null,'empty');return;}
+    cb(ways,null);
+   })
+   .catch(function(err){clearTimeout(to);idx++;if(idx<eps.length){tryOne();}else{cb(null,err.message||'fail');}});
+ }
+ tryOne();
 }
 /* ---- average litres per fill, from ATC DKV + AS24 card data Jan-May 2026 ----
    Truck = Rigid + Tractor + Truck combined. Van = Van.
@@ -1483,11 +1563,16 @@ function renderRoute(near,flagged,sum,R,total,minP,maxP){
  }
  el('routeResult').innerHTML=h;
 }
-function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;chosenStopName=null;var gb=el('routeGmaps');if(gb){gb.hidden=true;gb.textContent='\uD83D\uDDFA Open route in Google Maps';}var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
+function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}routeStops=[];routeBest=null;chosenStopName=null;lastNear=[];lastSamples=[];hwWays=null;hwWaysKey='';var hw=el('hwToggle');if(hw)hw.checked=false;var hwb=document.querySelector('.route-hw');if(hwb)hwb.classList.remove('busy');var gb=el('routeGmaps');if(gb){gb.hidden=true;gb.textContent='\uD83D\uDDFA Open route in Google Maps';}var sh=el('routeShare');if(sh)sh.hidden=true;var r=el('routeResult');if(r)r.innerHTML='';var a=el('routeFrom'),b=el('routeTo');if(a)a.value='';if(b)b.value='';}
 (function(){var b=el('routeBtn'),p=el('routePanel');if(!b||!p)return;
  b.addEventListener('click',function(e){e.stopPropagation();var opening=p.hidden;if(opening){closeAllPanels('routePanel');p.hidden=false;b.classList.add('on');}else{p.hidden=true;b.classList.remove('on');}});
  var fb=el('routeFind');if(fb)fb.addEventListener('click',findRoute);
  var cb=el('routeClear');if(cb)cb.addEventListener('click',clearRoute);
+ var hw=el('hwToggle');if(hw)hw.addEventListener('change',function(){
+  if(!lastNear.length){if(hw.checked){toast('Find a route first');hw.checked=false;}return;}
+  if(hw.checked){applyHighwayFilter();}
+  else{renderRoute(lastNear.slice(0,8),lastFlagged,lastSum,lastR,lastNear.length,lastNear.length?lastNear[0].s.p:null,lastNear.length?lastNear[lastNear.length-1].s.p:null);}
+ });
  var sh=el('routeShare');if(sh)sh.addEventListener('click',function(){
   var f=(el('routeFrom').value||'').trim(),t=(el('routeTo').value||'').trim(),km=(el('routeKm')&&el('routeKm').value)||'8';
   if(!f||!t){toast('Find a route first.');return;}
