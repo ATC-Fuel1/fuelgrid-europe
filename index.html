@@ -440,7 +440,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.4</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.5</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -627,7 +627,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.4';
+var APP_VER='6.5';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -757,8 +757,8 @@ map.fitBounds([[35.3,-11.0],[64.5,25.5]]);
    1) Carto light tiles  2) OpenStreetMap tiles  3) built-in simplified
    vector basemap (country shapes) for environments that block tile servers. */
 var PROVIDERS=[
- {url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',opt:{subdomains:'abcd',maxZoom:19,attribution:'&copy; OpenStreetMap contributors &copy; CARTO'}},
- {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',opt:{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}}
+ {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',opt:{maxZoom:19,crossOrigin:true,attribution:'&copy; OpenStreetMap contributors'}},
+ {url:'https://tile.openstreetmap.de/{z}/{x}/{y}.png',opt:{maxZoom:18,crossOrigin:true,attribution:'&copy; OpenStreetMap contributors'}}
 ];
 /* Simplified land shapes (approximate, for offline fallback only) as [lat,lng] rings */
 var LAND=[
@@ -1831,6 +1831,7 @@ function loadEV(){
    Object.keys(COUNTRY).forEach(function(cc){AVG.ev[cc]=cnt[cc]?sums[cc]/cnt[cc]:null;});
    EV_LOADED=true;EV_LOADING=false;
    if(s)s.innerHTML=prev;
+   if(!rows.length){toast('EV charger data is being refreshed \u2014 not available this moment');var nn=el('evPriceNote');if(nn)nn.textContent='EV charger data is currently refreshing and will reappear on the next update.';}
    var et=rows.length,en=0;for(var w=0;w<et;w++){if(rows[w].p==null)en++;}
    var note=el('evPriceNote');if(note&&et)note.textContent='Right now about '+Math.round(en/et*100)+'% of chargers ('+en.toLocaleString()+' of '+et.toLocaleString()+') have no public price, because EV tariffs depend on the driver\u2019s charging plan or roaming contract. Charger location and power (kW) are reliable; a price is shown only where the operator publishes one.';
    updateChipCounts();
