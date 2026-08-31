@@ -445,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.9</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.10</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -632,7 +632,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.9';
+var APP_VER='6.10';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1402,7 +1402,9 @@ function runRouting(fla,flo,tla,tlo){
       method:'POST',headers:{'Authorization':ORS_KEY,'Content-Type':'application/json'},
       body:JSON.stringify({coordinates:coords,instructions:true})});
    }else{
-    fetchP=fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson?api_key='+ORS_KEY+'&start='+flo+','+fla+'&end='+tlo+','+tla+'&instructions=true');
+    fetchP=fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson',{
+      method:'POST',headers:{'Authorization':ORS_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({coordinates:[[flo,fla],[tlo,tla]],instructions:true})});
    }
    fetchP.then(function(r){return r.json();}).then(function(j){
     if(!j||!j.features||!j.features.length){
