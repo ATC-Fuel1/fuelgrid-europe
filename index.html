@@ -445,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.6</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.7</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -632,7 +632,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.6';
+var APP_VER='6.7';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -1353,7 +1353,7 @@ attachAC('searchInput','acSearch',function(r){
  var sb=document.querySelector('.searchbox');if(sb)sb.classList.remove('sopen');
  var c=el('searchClear');if(c)c.hidden=false;
  var _sk=el('searchKm'),_v=_sk?parseFloat(_sk.value):NaN;if(_v>0)searchRadius=_v;
- flyToPlace(r.lat,r.lng,nm);showCheapestNear(r.lat,r.lng,nm,true,searchRadius);
+ flyToPlace(r.lat,r.lng,nm,searchRadius);showCheapestNear(r.lat,r.lng,nm,true,searchRadius);
 });
 function coordsOf(id,val,cb){var i=el(id);var la=i&&i.getAttribute('data-lat'),lo=i&&i.getAttribute('data-lng');
  if(la&&lo){cb(parseFloat(la),parseFloat(lo),val);return;} geocode(val,cb);}
@@ -1637,10 +1637,18 @@ function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null
  ['routeFrom','routeTo'].forEach(function(id){var i=el(id);if(i)i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findRoute();}});});
  var rk=el('routeKm');if(rk)rk.addEventListener('change',function(){if(lastRoute)analyseRoute(lastRoute.latlngs,lastRoute.sum);});
 })();
-function flyToPlace(lat,lng,label){
+function flyToPlace(lat,lng,label,radiusKm){
  if(currentView!=='map'){var mb=document.querySelector('.viewseg button[data-view="map"]');if(mb)mb.click();}
- var z=Math.max(map.getZoom(),11);
- if(reduceMotion)map.setView([lat,lng],z);else map.flyTo([lat,lng],z,{duration:0.8});
+ if(radiusKm>0){
+  /* frame the map so the whole search radius is visible around the place */
+  var dLat=radiusKm/111, dLng=radiusKm/(111*Math.cos(lat*Math.PI/180));
+  var b=L.latLngBounds([lat-dLat,lng-dLng],[lat+dLat,lng+dLng]);
+  try{if(reduceMotion)map.fitBounds(b,{padding:[40,40]});else map.flyToBounds(b,{padding:[40,40],duration:0.8});}
+  catch(e){var z=Math.max(map.getZoom(),11);map.setView([lat,lng],z);}
+ }else{
+  var z=Math.max(map.getZoom(),11);
+  if(reduceMotion)map.setView([lat,lng],z);else map.flyTo([lat,lng],z,{duration:0.8});
+ }
  if(searchMarker){map.removeLayer(searchMarker);}
  searchMarker=L.marker([lat,lng],{zIndexOffset:2000,icon:L.divIcon({className:'searchPin',iconSize:[16,16],iconAnchor:[8,8],html:'<div class="spin"></div>'})}).addTo(map);
  if(label)searchMarker.bindTooltip(label,{direction:'top',offset:[0,-10]}).openTooltip();
@@ -1654,7 +1662,7 @@ function doSearch(){
  var R=searchRadius;
  geocode(q,function(la,lo,nm){
   if(la==null){toast('Place not found: '+q+' \u2014 try adding the country, e.g. \u201cZaragoza, Spain\u201d');return;}
-  flyToPlace(la,lo,nm||q);showCheapestNear(la,lo,nm||q,true,R);
+  flyToPlace(la,lo,nm||q,R);showCheapestNear(la,lo,nm||q,true,R);
  });
 }
 (function(){var b=el('searchBtn'),i=el('searchInput'),c=el('searchClear');
@@ -1770,8 +1778,15 @@ document.addEventListener('click',function(e){
  if(!row||(e.target.closest&&e.target.closest('a'))||(e.target.closest&&e.target.closest('button')))return;
  var la=parseFloat(row.getAttribute('data-la')),lo=parseFloat(row.getAttribute('data-lo'));
  if(isNaN(la)||isNaN(lo))return;
- var z=Math.max(map.getZoom(),STATION_ZOOM);
- if(reduceMotion)map.setView([la,lo],z);else map.flyTo([la,lo],z,{duration:0.7});
+ var z=Math.max(map.getZoom(),14);
+ var openPop=function(){
+  var snm=row.getAttribute('data-nm');
+  var st=null,list=stations[currentFuel]||[];
+  for(var i=0;i<list.length;i++){if(Math.abs(list[i].lat-la)<1e-5&&Math.abs(list[i].lng-lo)<1e-5){st=list[i];break;}}
+  if(st)L.popup({maxWidth:290}).setLatLng([la,lo]).setContent(popupHtml(st,'station')).openOn(map);
+ };
+ if(reduceMotion){map.setView([la,lo],z);openPop();}
+ else{map.once('moveend',openPop);map.flyTo([la,lo],z,{duration:0.7});}
 });
 /* small x on the panels (essential on phones) */
 document.addEventListener('click',function(e){
