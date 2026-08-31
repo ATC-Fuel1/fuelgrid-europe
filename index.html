@@ -445,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.7</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.8</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -632,7 +632,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.7';
+var APP_VER='6.8';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -898,12 +898,20 @@ function refreshCore(){
  var data=stations[currentFuel]||[];
  if(currentFuel==='ev'&&evMinKw>0){data=data.filter(function(s){return (s.kw||0)>=evMinKw;});}
  var pad=[],strict=[],strictPriced=[];
+ /* If the user searched "within N km of X", the ★ / "cheapest in view" /
+    stats must stay inside that radius, otherwise a far cheaper station
+    outside the radius wins and contradicts the search list. Stations
+    outside are still DRAWN, they just can't claim "cheapest in view". */
+ var sr=(searchAnchor&&searchAnchor.r>0)?searchAnchor:null;
  for(var i=0;i<data.length;i++){
   var s=data[i];
   if(!COUNTRY_ON[s.cc])continue;
   if(s.lat<pS||s.lat>pN||s.lng<pW||s.lng>pE)continue;
   pad.push(s);
-  if(s.lat>=sS&&s.lat<=sN&&s.lng>=sW&&s.lng<=sE){strict.push(s);if(s.p!=null)strictPriced.push(s);}
+  if(s.lat>=sS&&s.lat<=sN&&s.lng>=sW&&s.lng<=sE){
+   if(sr&&haversineKm(sr.lat,sr.lng,s.lat,s.lng)>sr.r)continue;
+   strict.push(s);if(s.p!=null)strictPriced.push(s);
+  }
  }
  lastView=strict;
  if(mode==='station'&&pad.length>3500)mode='agg';
@@ -1532,7 +1540,7 @@ function fetchHighwayWays(cb){
   var la=pts[i][0],lo=pts[i][1];
   if(la<curMinLa)curMinLa=la;if(la>curMaxLa)curMaxLa=la;
   if(lo<curMinLo)curMinLo=lo;if(lo>curMaxLo)curMaxLo=lo;
-  if((curMaxLa-curMinLa)>1.2||(curMaxLo-curMinLo)>1.2){pushBox();
+  if((curMaxLa-curMinLa)>2.0||(curMaxLo-curMinLo)>2.0){pushBox();
    curMinLa=curMaxLa=la;curMinLo=curMaxLo=lo;}
  }
  pushBox();
@@ -1559,16 +1567,22 @@ function fetchHighwayWays(cb){
   tryEp();
  }
 
- var qi=0;
- function next(){
-  if(qi>=boxes.length){
-   if(anyOk&&allWays.length)cb(allWays,null);
-   else cb(null,'empty');
-   return;
+ /* fetch boxes with limited parallelism - sequential was taking minutes on
+    long routes; 3 at a time is much faster and still kind to free servers */
+ var qi=0, active=0, finished=0, CONC=3;
+ function pump(){
+  while(active<CONC && qi<boxes.length){
+   var b=boxes[qi++]; active++;
+   fetchBox(b,function(){
+    active--; finished++;
+    if(finished>=boxes.length){
+     if(anyOk&&allWays.length)cb(allWays,null); else cb(null,'empty');
+    }else{ pump(); }
+   });
   }
-  fetchBox(boxes[qi],function(){qi++;next();});
  }
- next();
+ if(!boxes.length){cb(null,'empty');return;}
+ pump();
 }
 /* ---- average litres per fill, from ATC DKV + AS24 card data Jan-May 2026 ----
    Truck = Rigid + Tractor + Truck combined. Van = Van.
@@ -1640,11 +1654,17 @@ function clearRoute(){if(routeLayer){map.removeLayer(routeLayer);routeLayer=null
 function flyToPlace(lat,lng,label,radiusKm){
  if(currentView!=='map'){var mb=document.querySelector('.viewseg button[data-view="map"]');if(mb)mb.click();}
  if(radiusKm>0){
-  /* frame the map so the whole search radius is visible around the place */
-  var dLat=radiusKm/111, dLng=radiusKm/(111*Math.cos(lat*Math.PI/180));
-  var b=L.latLngBounds([lat-dLat,lng-dLng],[lat+dLat,lng+dLng]);
-  try{if(reduceMotion)map.fitBounds(b,{padding:[40,40]});else map.flyToBounds(b,{padding:[40,40],duration:0.8});}
-  catch(e){var z=Math.max(map.getZoom(),11);map.setView([lat,lng],z);}
+  searchAnchor={lat:lat,lng:lng,r:radiusKm};
+  /* Zoom so the visible width is roughly 2.5x the search radius. Using
+     fitBounds alone over-zooms out on wide screens (a 25km search ended up
+     showing ~300km), which made the "cheapest in view" point far outside
+     the radius the user asked for. */
+  var sz=map.getSize(), pxWide=Math.max(sz.x,320);
+  var wantKm=radiusKm*2.5;
+  var z=Math.log(pxWide*156543.03*Math.cos(lat*Math.PI/180)/(wantKm*1000))/Math.LN2;
+  if(!isFinite(z))z=11;
+  z=Math.max(4,Math.min(14,z));
+  if(reduceMotion)map.setView([lat,lng],z);else map.flyTo([lat,lng],z,{duration:0.8});
  }else{
   var z=Math.max(map.getZoom(),11);
   if(reduceMotion)map.setView([lat,lng],z);else map.flyTo([lat,lng],z,{duration:0.8});
@@ -1668,7 +1688,7 @@ function doSearch(){
 (function(){var b=el('searchBtn'),i=el('searchInput'),c=el('searchClear');
  if(b)b.addEventListener('click',doSearch);
  if(i){i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doSearch();}});i.addEventListener('input',function(){if(c)c.hidden=!i.value;});}
- if(c)c.addEventListener('click',function(){if(i){i.value='';i.focus();}c.hidden=true;if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}map.closePopup();});
+ if(c)c.addEventListener('click',function(){if(i){i.value='';i.focus();}c.hidden=true;searchAnchor=null;if(searchMarker){map.removeLayer(searchMarker);searchMarker=null;}map.closePopup();refresh();});
  var sk=el('searchKm');
  if(sk){
   sk.addEventListener('input',function(){var v=parseFloat(sk.value);if(v>0)searchRadius=v;});
@@ -1699,6 +1719,9 @@ function haversineKm(a,b,c,d){var R=6371,T=Math.PI/180;var dLa=(c-a)*T,dLo=(d-b)
 var nearMode=false, currentRadius=80;
 /* the city search has its OWN radius, independent of the Cheapest panel */
 var searchRadius=25;
+/* set after a radius search: {lat,lng,r} - keeps "cheapest in view" honest
+   to what the user asked for. Cleared when they pan/zoom away or clear. */
+var searchAnchor=null;
 function nationalAvg(cc){var a=(AVG[currentFuel]&&AVG[currentFuel][cc])||(MANUAL[currentFuel]&&MANUAL[currentFuel][cc]);return a||null;}
 function showCheapestNear(lat,lng,label,silentIfEmpty,radiusOverride){
  var R=(radiusOverride>0?radiusOverride:currentRadius),cand=[];
@@ -1903,7 +1926,14 @@ function applyPayload(pl){
  }catch(e){console.error('live data parse failed',e);}
 }
 
-map.on('moveend',debounce(refresh,120));
+map.on('moveend',debounce(function(){
+ /* if the user has panned so the searched place is off-screen, the radius
+    lock no longer makes sense - drop it and behave normally again */
+ if(searchAnchor){
+  try{if(!map.getBounds().contains([searchAnchor.lat,searchAnchor.lng]))searchAnchor=null;}catch(e){}
+ }
+ refresh();
+},120));
 (function(){
  try{
   var q=new URLSearchParams(location.search);
