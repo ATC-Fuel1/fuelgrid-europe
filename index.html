@@ -108,6 +108,11 @@
   /* Aggregate "price totems" */
   .aggWrap{background:none;border:none}
   .bestTag{position:absolute;transform:translate(-50%,-200%);background:#0b7a43;color:#fff;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;padding:2.5px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 7px rgba(16,24,40,.35);border:1.5px solid rgba(255,255,255,.92);cursor:pointer}
+  .priceTag{position:absolute;transform:translate(-50%,-140%);color:#fff;font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;padding:1.5px 6px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 4px rgba(16,24,40,.3);border:1.25px solid rgba(255,255,255,.9);cursor:pointer;line-height:1.3}
+  .priceTag.pt-green{background:#12a150}
+  .priceTag.pt-amber{background:#e08600}
+  .priceTag.pt-red{background:#e5484d}
+  .priceTag.pt-best{font-size:11.5px;padding:2.5px 8px;box-shadow:0 2px 8px rgba(16,24,40,.4);z-index:5}
   .bestTag:after{content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);border:4px solid transparent;border-top-color:#0b7a43}
   .agg{
     display:flex;align-items:center;justify-content:center;border-radius:50%;
@@ -440,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.5</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.6</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -627,7 +632,7 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.5';
+var APP_VER='6.6';
 var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
@@ -919,15 +924,28 @@ function refreshCore(){
    }
   }
   var dr=z>=13.5?6:(z>=11.5?5:4.2);
+  /* show a price label on EVERY priced station once zoomed in close enough
+     that labels don't overlap into mush; below that, only the cheapest few */
+  var labelAll = z>=13;
+  var cheapestId=null;
+  if(strictPriced.length){var cs=strictPriced.slice().sort(function(a,c){return a.p-c.p;});cheapestId=cs[0].lat+','+cs[0].lng;}
   pad.forEach(function(st){
    var col=st.p==null?COLORS.gray:colorFor(st).c;
-   var mk=L.circleMarker([st.lat,st.lng],{radius:dr,color:'rgba(255,255,255,.95)',weight:1.25,fillColor:col,fillOpacity:0.88});
-   mk.on('click',function(){
-    L.popup({maxWidth:290}).setLatLng([st.lat,st.lng]).setContent(popupHtml(st,'station')).openOn(map);
-   });
-   stationLayer.addLayer(mk);
+   if(st.p!=null && labelAll){
+    var isCheap=(st.lat+','+st.lng)===cheapestId;
+    var k=colorFor(st).k;
+    var tag=L.marker([st.lat,st.lng],{zIndexOffset:isCheap?1200:800,icon:L.divIcon({className:'aggWrap',iconSize:[0,0],iconAnchor:[0,0],html:'<div class="priceTag pt-'+k+(isCheap?' pt-best':'')+'">'+(isCheap?'\u2605 ':'')+'\u20ac'+fmtP(st.p)+'</div>'})});
+    tag.on('click',function(){L.popup({maxWidth:290}).setLatLng([st.lat,st.lng]).setContent(popupHtml(st,'station')).openOn(map);});
+    stationLayer.addLayer(tag);
+   }else{
+    var mk=L.circleMarker([st.lat,st.lng],{radius:dr,color:'rgba(255,255,255,.95)',weight:1.25,fillColor:col,fillOpacity:0.88});
+    mk.on('click',function(){
+     L.popup({maxWidth:290}).setLatLng([st.lat,st.lng]).setContent(popupHtml(st,'station')).openOn(map);
+    });
+    stationLayer.addLayer(mk);
+   }
   });
-  if(strictPriced.length>=8){
+  if(!labelAll && strictPriced.length>=8){
    strictPriced.slice().sort(function(a,c){return a.p-c.p;}).slice(0,3).forEach(function(st,ix){
     var tag=L.marker([st.lat,st.lng],{zIndexOffset:1000,icon:L.divIcon({className:'aggWrap',iconSize:[0,0],iconAnchor:[0,0],html:'<div class="bestTag">'+(ix===0?'\u2605 ':'')+'\u20ac'+fmtP(st.p)+'</div>'})});
     tag.on('click',function(){
