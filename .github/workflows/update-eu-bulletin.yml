@@ -2,7 +2,7 @@ name: Update EU bulletin
 
 on:
   schedule:
-    - cron: "0 5 * * 1"      # every Monday 05:00 UTC (before the 06:00 price refresh)
+        - cron: "0 5 * * *"      # every day 05:00 UTC (before the 06:00 price refresh)
   workflow_dispatch:          # lets you run it by hand from the Actions tab
 
 permissions:
