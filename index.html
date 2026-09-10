@@ -445,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.10</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.11</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -632,8 +632,12 @@
 /*APP-JS-START*/
 (function(){
 'use strict';
-var APP_VER='6.10';
-var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||'';}catch(e){return '';}})();
+var APP_VER='6.11';
+/* Shared ATC OpenRouteService key - free tier, no billing attached.
+   A personal key saved on this device (fg_ors_key) always wins if present;
+   this is only the fallback so drivers are never asked to paste their own. */
+var SHARED_ORS_KEY='eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjM2OTM4OGJiN2MyYTQzNDBiNDRhYTNkZDY1ZDk1ZThjIiwiaCI6Im11cm11cjY0In0=';
+var ORS_KEY=(function(){try{return localStorage.getItem('fg_ors_key')||SHARED_ORS_KEY;}catch(e){return SHARED_ORS_KEY;}})();
 if(window.console&&console.log)console.log('FuelGrid Europe v'+APP_VER);
 
 /* ---------------- utilities ---------------- */
