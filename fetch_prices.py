@@ -723,6 +723,96 @@ def gbp_to_eur_rate():
         raise RuntimeError("GBP not found in ECB feed")
     return r
 
+# --------------------------------------------------------- Norway (SSB)
+SSB_TABLE_URL = "https://data.ssb.no/api/v0/en/table/09654"
+
+
+def fetch_no_diesel():
+    """Statistics Norway (SSB) official average pump price for auto
+    diesel, table 09654 - public open data (CC BY 4.0), no key needed.
+    https://www.ssb.no/en/statbank/table/09654
+
+    Norway is not in the EU and does not appear in the EU Weekly Oil
+    Bulletin, so this is the real public source for a Norway average.
+    SSB publishes it MONTHLY (not weekly/daily), so this figure will
+    only actually change roughly once a month even though this script
+    runs daily - that is expected, not a bug.
+
+    SAFE BY DESIGN: table layout is read from SSB's own metadata (the
+    "diesel" row and "most recent period" are looked up by name, never
+    hardcoded), and the result is sanity-range-checked before use. On
+    ANY missing field, unexpected shape, or implausible value, this
+    prints why and returns None - the caller then keeps the existing
+    figure. It can never publish a guessed or garbled number.
+    """
+    try:
+        meta = json.loads(http_get(SSB_TABLE_URL, 60))
+        variables = meta.get("variables") or []
+
+        fuel_var = diesel_code = None
+        for v in variables:
+            texts = [(t or "").lower() for t in (v.get("valueTexts") or [])]
+            for i, t in enumerate(texts):
+                if "diesel" in t:
+                    fuel_var, diesel_code = v.get("code"), v["values"][i]
+                    break
+            if fuel_var:
+                break
+        if not fuel_var or not diesel_code:
+            print("SSB NO: no 'diesel' row found in table 09654 metadata "
+                  "- leaving Norway's figure unchanged")
+            return None
+
+        time_var = latest_code = None
+        for v in variables:
+            if (v.get("code") or "").lower() in ("tid", "time"):
+                time_var = v["code"]
+                vals = v.get("values") or []
+                if vals:
+                    latest_code = vals[-1]
+        if not time_var or not latest_code:
+            print("SSB NO: no time period found in table 09654 metadata "
+                  "- leaving Norway's figure unchanged")
+            return None
+
+        q = {"query": [
+                {"code": fuel_var, "selection": {"filter": "item", "values": [diesel_code]}},
+                {"code": time_var, "selection": {"filter": "item", "values": [latest_code]}},
+             ],
+             "response": {"format": "json-stat2"}}
+        req = urllib.request.Request(
+            SSB_TABLE_URL, data=json.dumps(q).encode("utf-8"),
+            headers={**UA, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read())
+
+        vals = data.get("value") or []
+        if not vals or not isinstance(vals[0], (int, float)):
+            print("SSB NO: response had no numeric value "
+                  "- leaving Norway's figure unchanged")
+            return None
+        nok_per_l = float(vals[0])
+        if not (10.0 < nok_per_l < 40.0):
+            print(f"SSB NO: {nok_per_l} NOK/L is outside a plausible range "
+                  "- leaving Norway's figure unchanged")
+            return None
+
+        nok_rate = ecb_rates().get("NOK")
+        if not nok_rate:
+            print("SSB NO: no NOK rate from ECB - leaving Norway's figure unchanged")
+            return None
+        eur = nok_per_l / nok_rate
+        if not (1.0 < eur < 3.5):
+            print(f"SSB NO: converted €{eur:.3f}/L is outside a plausible range "
+                  "- leaving Norway's figure unchanged")
+            return None
+
+        print(f"SSB NO: diesel {nok_per_l} NOK/L → €{eur:.3f}/L "
+              "(official, table 09654)")
+        return round(eur, 3)
+    except Exception as exc:
+        print(f"SSB NO: fetch failed ({exc}) - leaving Norway's figure unchanged")
+        return None
 
 def _col_idx(ref):
     n = 0
@@ -1174,12 +1264,17 @@ def merged_averages():
     """No-feed national diesel averages. Uses the real EU Weekly Oil
     Bulletin ('Prices with taxes', column C road diesel) from
     data/manual/eu_wob_prices.xlsx when present; falls back to a pinned
-    baseline if it is missing; a manual CSV overrides everything."""
+    baseline if it is missing; a manual CSV overrides everything.
+    Norway (not in the EU bulletin) is overridden separately from the
+    official Statistics Norway feed - see fetch_no_diesel()."""
     diesel = dict(DEFAULT_DIESEL_AVG)          # pinned fallback (used if bulletin missing)
     bulletin = read_eu_bulletin()               # real EU Weekly Oil Bulletin figures
     for cc, v in bulletin.items():
         if cc in diesel:                        # only the countries we display
             diesel[cc] = v
+    no_val = fetch_no_diesel()                  # real SSB figure for Norway, if available
+    if no_val is not None:
+        diesel["NO"] = no_val
     out = {"diesel": diesel}
     for fuel, m in load_manual_averages().items():   # manual CSV still wins if present
         out.setdefault(fuel, {}).update(m)
