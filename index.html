@@ -445,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.11</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.12</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -1441,7 +1441,7 @@ function isMotorwayName(nm){
  /* road codes: A / AP / E / M / D + optional space/hyphen + number
     (covers ES A-2/AP-7, FR/IT/DE A1, E-roads E70, UK M6, FR D-roads dropped
     unless clearly express). Require the number to avoid matching street names. */
- if(/^(A|AP|E|M)[\s-]?\d{1,3}[A-Z]?$/.test(s))return true;
+     if(/(^|[\s;,\/])(A|AP|E|M)[\s-]?\d{1,3}[A-Z]?($|[\s;,\/])/.test(s))return true;
  /* names that START with a motorway code then a description, e.g. "A63 - ..." */
  if(/^(A|AP|E|M)[\s-]?\d{1,3}\b/.test(s) && /(AUTO|MOTOR|E\d|A\d)/.test(s))return true;
  return false;
