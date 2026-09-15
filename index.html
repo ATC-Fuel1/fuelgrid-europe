@@ -445,7 +445,7 @@
   <div class="brand">
     <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
     <div class="brand-txt">
-      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.12</span></div>
+      <div class="brand-row"><h1>FuelGrid Europe</h1><span class="ver">v6.13</span></div>
       <span class="snapshot" id="snapshot">Loading live data…</span>
     </div>
   </div>
@@ -574,12 +574,14 @@
     <p style="margin-top:6px"><b>Zoomed in (station view):</b> colours re-rank against the stations <i>currently on screen</i> — cheapest third green, middle third amber, priciest third red — so you can always spot the best stop on a route.</p>
 
     <h4>How to read each price — trust tiers</h4>
+    <p>The bubble and marker colours on the map always mean <b>price</b> (cheap / mid / dear), never data source — see the traffic-light explanation above. Separately, each price comes from one of four kinds of source, in descending order of trust:</p>
     <ul>
-      <li>🟢 <b>Government · per station</b> — official national price feeds, refreshed every run. Highest trust; use these to decide where to fuel.</li>
-      <li>🔵 <b>Official national average</b> — one figure per country (EU Weekly Oil Bulletin), drawn as a dashed bubble at the country centre. Official but not per-station — indicative for planning only.</li>
-      <li>🟡 <b>Community</b> — Open Charge Map (EV). Charger location &amp; power are reliable; price is community-supplied and often missing.</li>
-      <li>⚪ <b>Location only</b> — grey dot, no price (OpenStreetMap), for diesel in countries with no public price feed. Shows <i>where</i> to fuel, not the price.</li>
+      <li><b>Government · per station</b> — official national price feeds, refreshed every run. Highest trust; use these to decide where to fuel. (Germany, Spain, France, Italy, UK, Austria.)</li>
+      <li><b>Official national average</b> — one figure per country (EU Weekly Oil Bulletin), drawn as a dashed slate bubble at the country centre. Official but not per-station — indicative for planning only.</li>
+      <li><b>Community</b> — Open Charge Map (EV only). Charger location &amp; power are reliable; price is community-supplied and often missing.</li>
+      <li><b>Location only</b> — grey dot, no price (OpenStreetMap), for diesel in countries with no public price feed. Shows <i>where</i> to fuel, not the price.</li>
     </ul>
+    <p style="margin-top:6px"><b>EV colours work differently:</b> because EV tariffs can't be compared to a national average, charger colours use fixed price bands — green ≤ €0.40/kWh, amber €0.40–0.60, red above €0.60. Chargers with no published price show grey.</p>
 
     <h4>Sources by country — all 21</h4>
     <p><b>EV for every country:</b> Open Charge Map (community) — see the EV section below. Diesel and HVO100 per country:</p>
@@ -596,14 +598,14 @@
       <li>🇮🇹 <b>Italy</b> — <b>Diesel:</b> Osservaprezzi Carburanti (MIMIT) — official live per-station. <b>HVO100:</b> official live per-station (same feed).</li>
       <li>🇱🇺 <b>Luxembourg</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average (prices are state-regulated) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇳🇱 <b>Netherlands</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
-      <li>🇳🇴 <b>Norway</b> — <b>Diesel:</b> indicative national average (pinned; Norway is outside the EU bulletin) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇳🇴 <b>Norway</b> — <b>Diesel:</b> national average (Norway is outside the EU Weekly Oil Bulletin, so the figure is set from published Norwegian averages via a manual override, not a live per-station feed) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇵🇱 <b>Poland</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇷🇴 <b>Romania</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇸🇰 <b>Slovakia</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇸🇮 <b>Slovenia</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average (max prices state-regulated off-motorway) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇪🇸 <b>Spain</b> — <b>Diesel:</b> MITECO / Geoportal Gasolineras — official live per-station. <b>HVO100:</b> official live per-station (same feed).</li>
       <li>🇸🇪 <b>Sweden</b> — <b>Diesel:</b> EU Weekly Oil Bulletin — official national average + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
-      <li>🇨🇭 <b>Switzerland</b> — <b>Diesel:</b> indicative national average (pinned; outside the EU bulletin) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
+      <li>🇨🇭 <b>Switzerland</b> — <b>Diesel:</b> national average (Switzerland is outside the EU Weekly Oil Bulletin, so the figure is set from published Swiss averages via a manual override, not a live per-station feed) + OpenStreetMap locations. <b>HVO100:</b> not published.</li>
       <li>🇬🇧 <b>United Kingdom</b> — <b>Diesel:</b> CMA Fuel Finder retailer feeds — official live per-station, £→€ at the daily ECB rate. <b>HVO100:</b> not published.</li>
     </ul>
     <h4>Methodology &amp; updates</h4>
@@ -614,6 +616,7 @@
     <h4>Route planning (truck / HGV)</h4>
     <p>💶 <b>Saving per fill</b> is the price spread along the route (dearest minus cheapest priced station within your chosen km) multiplied by the average litres per fill for that vehicle class. Those averages come from ATC's own <b>DKV and AS24 fuel card transactions, January to May 2026</b>: Diesel (incl. Special &amp; Premium) 321.6 L/fill for trucks (Rigid + Tractor + Truck, 360 fills) and 52.7 L/fill for vans (757 fills); HVO100 (incl. Biodiesel) 277.7 L/fill for trucks (744 fills) and 60.0 L/fill for vans (9 fills — a small sample, so treat the van HVO figure as indicative). It is a best-case figure: it assumes the whole fill is taken at the cheapest station rather than the dearest, and it does not yet subtract the cost of detouring to reach that station. EV per-charge saving is not calculated yet, as average kWh per charging session has not been loaded.</p>
     <p>🛣 Routes come from <b>OpenRouteService</b> (openrouteservice.org) using its heavy-goods-vehicle profile on <b>OpenStreetMap</b> road data — real routing that avoids general truck-restricted roads (it is not yet tuned to a specific vehicle’s weight/height). Prices shown along a route are the same official station data as the map, and any country the route crosses that does not publish per-station prices is flagged as national-average only. “km off route” is measured to the nearest sampled point on the route line (accurate to within a few km), and the country flag is inferred from the nearest station, so it may be approximate right at a border.</p>
+    <p style="margin-top:6px">🛢 <b>Motorway stations only</b> (toggle in the Route panel): once a route is drawn, switching this on hides urban and local stations and keeps only those within about 700 m of a motorway or major-road section of the route — so a driver sees the stops they can actually reach without leaving the main road. It identifies motorway sections from the road names the router returns (A-roads, autobahns, autoroutes, autostrade, E-roads, etc.). If a route has no clearly-named motorway sections, the toggle shows all stations and says so.</p>
 
     <h4>EV charging — all countries (community data)</h4>
     <p><b>Where it comes from:</b> ⚡ <b>Open Charge Map</b> (openchargemap.org), the largest open registry of charge points, covering all 21 countries in this tool. For every charger it gives location, power rating (kW), operator, and connector type (AC / DC / HPC).</p>
